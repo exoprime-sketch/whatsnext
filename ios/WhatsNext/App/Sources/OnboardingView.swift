@@ -93,7 +93,7 @@ struct OnboardingView: View {
                                     RoundedRectangle(cornerRadius: 22, style: .continuous)
                                         .fill(viewModel.onboardingDraft.firstTaskTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.gray.opacity(0.2) : Color(red: 0.20, green: 0.15, blue: 0.11))
                                 )
-                                .foregroundStyle(viewModel.onboardingDraft.firstTaskTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .secondary : .white)
+                                .foregroundColor(viewModel.onboardingDraft.firstTaskTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.secondary : Color.white)
                         }
                         .disabled(viewModel.onboardingDraft.firstTaskTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSubmitting)
 
