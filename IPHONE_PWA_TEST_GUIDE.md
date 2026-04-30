@@ -4,16 +4,19 @@
 
 Use the PWA like a real iPhone product before paying for Apple Developer enrollment.
 
-The question is not "Does it technically run?"
-The question is:
+The question is no longer just:
 
-**Does What's Next reduce deciding enough that you would keep it on your home screen?**
+**Does What's Next tell me what to do now?**
+
+The better question is:
+
+**Does What's Next reduce retyping enough to feel worth keeping?**
 
 ## What You Need
 
 - The GitHub repository
 - A Vercel account or GitHub Pages setup
-- An iPhone 14 Pro
+- An iPhone
 - Safari
 
 ## Recommended Deployment: Vercel
@@ -65,74 +68,88 @@ Use this only if you specifically want Pages. For fast iteration, Vercel is stil
 
 ## What To Check Immediately
 
-- Does the icon look clean on the home screen?
-- Does it open in standalone mode?
 - Does the first screen explain itself in 5 seconds?
-- Does the Now card feel like the product, not just another task list?
+- Does `Capture` feel like the product?
+- Is the privacy line honest and reassuring?
+- Is it clear that the PWA only uses pasted text for now?
+- Does the native roadmap feel like an upgrade path rather than an apology?
 
 ## 3-Day Test Plan
 
 ### Day 1
 
-- Open from Safari
-- Enable QA mode
-- Add 5 real tasks
-- Use the Now Card once
-- Add the app to Home Screen
+- Paste one real meeting note or message
+- Save detected items
+- Check whether this avoided manual entry
+- Use `Now` once
 
 ### Day 2
 
-- Open from Home Screen
-- Complete or delay at least one task
-- Try Capture with one real note
+- Paste a real plan or appointment message
+- Check event detection
+- Edit one detected item before saving
+- Reopen from Home Screen
 
 ### Day 3
 
 - Export the QA summary
-- Write one note: `What felt annoying?`
-- Ask: did this reduce deciding?
-- Ask: would I keep this on my home screen?
-- Ask: is native iOS worth building?
+- Answer:
+  1. Did this reduce retyping?
+  2. Was paste still too annoying?
+  3. Would Share Sheet make this worth using?
+  4. Would Calendar or Reminders save make this worth paying for?
+  5. What was still too manual?
 
 ## Test Checklist
 
 ### Core Value
 
-- The first screen clearly says what to do now
-- The recommendation feels reasonable
-- Secondary information stays quiet
-- The product feels calmer than a normal to-do app
+- The first screen says `Stop retyping tasks and plans`
+- The paste flow feels like the primary job
+- Extraction makes messy text feel lighter to manage
+- The app feels more like input reduction than task administration
+
+### Capture Quality
+
+- Pasting messy notes creates usable tasks
+- Appointment-style messages can become event-shaped items
+- Reminder-like text becomes reminder-shaped items
+- You can edit or deselect bad detections before saving
+
+### Honesty And Trust
+
+- The app does not claim to read messages automatically
+- The privacy line is clear: only pasted text is used
+- The native iOS direction sounds plausible but not overclaimed
+- QA export does not include pasted text by default
 
 ### Daily Use
 
-- Adding a task is fast
-- Done / Later / Not today are enough to keep moving
-- Opening the app on a new day still feels fresh
-- Delayed tasks are handled cleanly
-
-### Capture
-
-- Pasting messy notes creates usable task suggestions
-- The app does not overclaim AI
-- The privacy message is clear: only pasted text is used
-
-### Trust
-
-- Your data persists between opens
-- Reset data works
-- The product feels local-first and lightweight
+- `Now` still helps with follow-through after capture
+- Manual add is available but not competing with capture
+- Reopening from Home Screen still feels good
+- Local persistence works without accounts or sync
 
 ## What You Can Validate In The PWA
 
 - Mobile layout quality
-- Home screen install experience
+- Home Screen install experience
 - Standalone app feel
-- Now card clarity
-- Task entry speed
-- Capture usefulness
-- Local persistence
+- Capture-first messaging
+- Extraction usefulness
+- Local save flow for tasks, reminders, and calendar-ready events
+- Whether capture meaningfully reduces manual entry
 - Local-only QA event signals
-- Whether the product deserves repeated opens
+
+## What You Cannot Validate In The PWA
+
+- Native Share Extension capture
+- Real Calendar write
+- Real Reminders write
+- Native widgets
+- Native notification permission flow
+- TestFlight install experience
+- App Store packaging quality
 
 ## What To Export After 3 Days
 
@@ -140,32 +157,22 @@ From `Settings > Founder QA`:
 
 - Tap `Copy QA summary` for a plain-text review summary
 - Tap `Download QA JSON` for the raw local event log
-- Keep one short founder note about what felt annoying or unclear
+- Keep one short founder note about what still felt too manual
 
 Share the summary, JSON export, and one written conclusion:
 
-- Would you keep this on your Home Screen?
-- Did it reduce deciding?
-- What should change next?
+- Did this reduce retyping?
+- Was paste still too annoying?
+- Would Share Sheet make this clearly better?
+- Would Calendar or Reminders save make this worth paying for?
+- What was still too manual?
 
-## What You Cannot Validate In The PWA
+## Apple Developer Spending Criteria
 
-- Native iOS widgets
-- Native notification permission flow
-- TestFlight install experience
-- App Store packaging quality
-- Native SwiftUI transitions and performance details
+Only spend money on native iOS if all of these are true:
 
-## When To Move To Native iOS
+- extraction is useful
+- manual entry is clearly reduced
+- the main remaining complaint is `I wish this had Share Sheet / Calendar save / Reminder save`
 
-Move to native only if the PWA test shows clear product value.
-
-Good signals:
-
-- You open it repeatedly without forcing yourself
-- The Now card reduces friction instead of creating more management work
-- You would keep it on your home screen
-- Capture is useful enough to use again
-- The product feels meaningfully different from a generic to-do list
-
-If those signals are weak, keep refining the PWA before spending money on Apple Developer enrollment.
+If those signals are weak, keep refining the PWA before paying for Apple Developer enrollment.

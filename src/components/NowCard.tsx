@@ -1,13 +1,20 @@
 import type { Task } from '../types';
 import { getDueLabel } from '../lib/time';
 
+const TYPE_LABEL = {
+  task: 'Task',
+  event: 'Event',
+  reminder: 'Reminder'
+} as const;
+
 interface NowCardProps {
   task: Task | null;
   reasons: string[];
   onComplete: (taskId: string) => void;
   onSnooze: (taskId: string) => void;
   onSkipToday: (taskId: string) => void;
-  onQuickAdd: () => void;
+  onOpenCapture: () => void;
+  onManualAdd: () => void;
 }
 
 export function NowCard({
@@ -16,17 +23,23 @@ export function NowCard({
   onComplete,
   onSnooze,
   onSkipToday,
-  onQuickAdd
+  onOpenCapture,
+  onManualAdd
 }: NowCardProps) {
   if (!task) {
     return (
       <section className="now-card empty">
         <div className="eyebrow">Now</div>
-        <h2>Nothing to decide right now.</h2>
-        <p>Add one task and I'll pick what to do next. Start with one thing.</p>
-        <button type="button" className="primary-button" onClick={onQuickAdd}>
-          Add a task
-        </button>
+        <h2>Nothing needs follow-up yet.</h2>
+        <p>Start in Capture. Paste something messy first, then come back here for the next move.</p>
+        <div className="empty-actions">
+          <button type="button" className="primary-button" onClick={onOpenCapture}>
+            Go to Capture
+          </button>
+          <button type="button" className="ghost-button" onClick={onManualAdd}>
+            Add manually
+          </button>
+        </div>
       </section>
     );
   }
@@ -37,9 +50,10 @@ export function NowCard({
       <h2>{task.title}</h2>
       {reasons[0] ? <p className="now-card__lead">{reasons[0]}</p> : null}
       <div className="now-card__meta">
+        <span>{TYPE_LABEL[task.itemType]}</span>
         <span>{task.durationMinutes} min</span>
         {task.due !== 'none' ? <span>{getDueLabel(task.due)}</span> : null}
-        {task.importance === 'high' ? <span>High priority</span> : null}
+        {task.timeLabel ? <span>{task.timeLabel}</span> : null}
       </div>
       {task.memo ? <p className="now-card__memo">{task.memo}</p> : null}
       {reasons.length > 1 ? (
@@ -62,7 +76,7 @@ export function NowCard({
           Not today
         </button>
       </div>
-      <p className="subcopy">Finish this and I'll keep the next one ready.</p>
+      <p className="subcopy">Capture is the front door. This card is the follow-through layer.</p>
     </section>
   );
 }

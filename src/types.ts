@@ -5,12 +5,8 @@ export type TaskStatus = 'active' | 'completed';
 export type TimeBand = 'morning' | 'afternoon' | 'evening' | 'night';
 export type TaskFeedbackType = 'snooze' | 'skipToday' | 'negative';
 export type TaskSource = 'manual' | 'capture' | 'sample';
-export type AppView =
-  | 'today'
-  | 'add'
-  | 'list'
-  | 'capture'
-  | 'settings';
+export type ItemType = 'task' | 'event' | 'reminder';
+export type AppView = 'capture' | 'today' | 'add' | 'list' | 'settings';
 export type TaskFilter = 'all' | 'today' | 'completed' | 'postponed';
 
 export interface TaskDraft {
@@ -20,6 +16,11 @@ export interface TaskDraft {
   importance: Importance;
   due: DueBucket;
   preferredTime: PreferredTime;
+  itemType: ItemType;
+  dateLabel?: string;
+  timeLabel?: string;
+  personLabel?: string;
+  locationLabel?: string;
 }
 
 export interface Task extends TaskDraft {
@@ -69,6 +70,7 @@ export interface RecommendationResult {
 
 export interface CaptureCandidate extends TaskDraft {
   id: string;
+  confidence: number;
   rawText: string;
   selected: boolean;
 }
@@ -78,6 +80,7 @@ export type QAEventName =
   | 'standalone_open'
   | 'first_task_created'
   | 'task_created'
+  | 'manual_task_created'
   | 'now_card_viewed'
   | 'now_card_done'
   | 'now_card_later'
@@ -86,6 +89,9 @@ export type QAEventName =
   | 'capture_opened'
   | 'capture_pasted'
   | 'capture_candidate_saved'
+  | 'extraction_run'
+  | 'capture_items_saved'
+  | 'used_manual_add_after_capture'
   | 'settings_opened'
   | 'data_reset'
   | 'sample_tasks_restored';
@@ -100,8 +106,18 @@ export interface QAEventMetadata {
   nowTaskId?: string;
   previousNowTaskId?: string;
   captureCandidateCount?: number;
+  detectedItemsCount?: number;
+  savedDetectedItemsCount?: number;
+  extractedTaskCount?: number;
+  extractedEventCount?: number;
+  extractedReminderCount?: number;
+  savedTaskCount?: number;
+  savedEventCount?: number;
+  savedReminderCount?: number;
+  manualEntriesAvoidedApprox?: number;
   displayMode?: DisplayMode;
   source?: TaskSource;
+  itemType?: ItemType;
 }
 
 export interface QAEvent {
@@ -131,14 +147,28 @@ export interface QASummary {
   activeDays: number;
   totalAppOpens: number;
   standaloneOpens: number;
-  totalTasksCreated: number;
   totalDoneClicks: number;
   totalLaterClicks: number;
   totalNotTodayClicks: number;
   captureOpenedCount: number;
-  captureSavedCount: number;
+  extractionRuns: number;
+  detectedItemsCount: number;
+  savedDetectedItemsCount: number;
+  manualTaskCreatedCount: number;
+  manualEntriesAvoidedApprox: number;
+  captureSavedTaskCount: number;
+  captureSavedEventCount: number;
+  captureSavedReminderCount: number;
+  captureToSaveConversion: number;
+  usedManualAddAfterCaptureCount: number;
+  eventDetections: number;
+  reminderDetections: number;
   returnedOnDay2: boolean;
   returnedOnDay3: boolean;
   currentActiveTaskCount: number;
   currentCompletedTaskCount: number;
+  currentTaskCount: number;
+  currentEventCount: number;
+  currentReminderCount: number;
+  captureVsManualRatio: string;
 }

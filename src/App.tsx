@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { BottomNav } from './components/BottomNav';
+import { CaptureCandidateCard } from './components/CaptureCandidateCard';
 import { FounderQAPanel } from './components/FounderQAPanel';
 import { NowCard } from './components/NowCard';
 import { TaskCard } from './components/TaskCard';
 import { TaskEditor } from './components/TaskEditor';
 import { sampleTasks } from './data/sampleTasks';
-import { extractTaskCandidates } from './lib/capture';
+import { extractCaptureCandidates, SAMPLE_CAPTURE_TEXT } from './lib/capture';
 import {
   buildQAExport,
   buildQASummary,
@@ -28,11 +29,12 @@ import {
   getPostponeWeight,
   normalizeTasksForToday
 } from './lib/tasks';
-import { formatDateLabel, formatTimeLabel, getDueLabel, getGreetingCopy, plusMinutes, toDateKey } from './lib/time';
+import { formatDateLabel, formatTimeLabel, getGreetingCopy, plusMinutes, toDateKey } from './lib/time';
 import type {
   ActivityLog,
   AppView,
   CaptureCandidate,
+  ItemType,
   QAData,
   QAEventMetadata,
   QAEventName,
@@ -51,12 +53,20 @@ const FILTER_ITEMS: Array<{ value: TaskFilter; label: string }> = [
   { value: 'postponed', label: 'Delayed' }
 ];
 
-const BEST_TIME_LABEL = {
-  morning: 'Morning',
-  afternoon: 'Afternoon',
-  evening: 'Evening',
-  anytime: 'Any time'
+const ITEM_LABEL = {
+  task: 'Tasks',
+  event: 'Events',
+  reminder: 'Reminders'
 } as const;
+
+interface CaptureOutcome {
+  detectedCount: number;
+  savedCount: number;
+  savedTaskCount: number;
+  savedEventCount: number;
+  savedReminderCount: number;
+  manualEntriesAvoidedApprox: number;
+}
 
 function getCompleteMessage(date: Date, nextTaskTitle?: string) {
   const base = COMPLETE_MESSAGES[date.getTime() % COMPLETE_MESSAGES.length];
@@ -101,7 +111,7 @@ function getDelaySummary(postponedTasks: Task[]) {
   if (postponedTasks.length === 0) {
     return {
       title: 'Nothing repeated',
-      detail: "You don't have a task getting pushed over and over."
+      detail: "You don't have a follow-up getting pushed over and over."
     };
   }
 
@@ -114,28 +124,50 @@ function getDelaySummary(postponedTasks: Task[]) {
   };
 }
 
+function getItemCounts<T extends { itemType: ItemType }>(items: T[]) {
+  return items.reduce(
+    (counts, item) => {
+      counts[item.itemType] += 1;
+      return counts;
+    },
+    {
+      task: 0,
+      event: 0,
+      reminder: 0
+    } satisfies Record<ItemType, number>
+  );
+}
+
+function getCaptureOutcomeText(count: number) {
+  return `About ${count} manual ${count === 1 ? 'entry' : 'entries'} avoided.`;
+}
+
 export default function App() {
   const [now, setNow] = useState(() => new Date());
   const [initialData] = useState(() => loadAppData(new Date()));
   const [tasks, setTasks] = useState<Task[]>(initialData.tasks);
   const [logs, setLogs] = useState<ActivityLog[]>(initialData.logs);
-  const [activeView, setActiveView] = useState<AppView>('today');
+  const [activeView, setActiveView] = useState<AppView>('capture');
   const [listFilter, setListFilter] = useState<TaskFilter>('all');
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [captureText, setCaptureText] = useState('');
   const [captureCandidates, setCaptureCandidates] = useState<CaptureCandidate[]>([]);
+  const [captureOutcome, setCaptureOutcome] = useState<CaptureOutcome | null>(null);
   const [toastMessage, setToastMessage] = useState('');
   const [qaMode, setQaMode] = useState(() => initializeQAMode());
   const [qaData, setQaData] = useState<QAData>(() => loadQAData());
   const qaOpenTrackedRef = useRef(false);
   const lastNowTaskIdRef = useRef<string | null>(null);
+  const captureFlowRef = useRef({
+    hasExtraction: false,
+    manualAfterCaptureTracked: false
+  });
 
   const greeting = getGreetingCopy(now);
   const recommendation = getNowRecommendation(tasks, now);
   const sortedTasks = sortTasksByRecommendation(tasks, now);
   const visibleTasks = getVisibleTasks(listFilter, tasks, now);
   const activeTasks = tasks.filter((task) => task.status === 'active');
-  const completedTaskCount = tasks.length - activeTasks.length;
   const completedToday = tasks
     .filter(
       (task) =>
@@ -161,6 +193,10 @@ export default function App() {
     .slice(0, 3);
   const delaySummary = getDelaySummary(postponedTasks);
   const qaSummary = buildQASummary(qaData.events, tasks);
+  const captureCandidateCounts = getItemCounts(captureCandidates);
+  const savedItemCounts = getItemCounts(tasks);
+  const dueSoonCount = activeTasks.filter((task) => task.due === 'today' || task.due === 'tomorrow').length;
+  const capturedCount = tasks.filter((task) => task.source === 'capture').length;
 
   function showToast(message: string) {
     setToastMessage(message);
@@ -201,33 +237,13 @@ export default function App() {
     }));
   }
 
-  function trackTaskCreated(taskSnapshot: Task[], source: Task['source'], timestamp: Date) {
-    if (!qaMode) {
+  function trackManualAfterCapture(taskSnapshot: Task[], timestamp: Date) {
+    if (!qaMode || !captureFlowRef.current.hasExtraction || captureFlowRef.current.manualAfterCaptureTracked) {
       return;
     }
 
-    setQaData((current) => {
-      const metadata = buildQAMetadata(taskSnapshot, { source });
-      const nextEvents = [createQAEvent('task_created', timestamp, metadata)];
-
-      if (source === 'capture') {
-        nextEvents.unshift(
-          createQAEvent('capture_candidate_saved', timestamp, buildQAMetadata(taskSnapshot, {
-            source,
-            captureCandidateCount: 1
-          }))
-        );
-      }
-
-      if (!current.events.some((event) => event.eventName === 'first_task_created')) {
-        nextEvents.push(createQAEvent('first_task_created', timestamp, metadata));
-      }
-
-      return {
-        ...current,
-        events: [...nextEvents, ...current.events].slice(0, 800)
-      };
-    });
+    captureFlowRef.current.manualAfterCaptureTracked = true;
+    trackQAEvent('used_manual_add_after_capture', {}, timestamp, taskSnapshot);
   }
 
   async function copyQASummary() {
@@ -403,9 +419,24 @@ export default function App() {
 
     setTasks((current) => [task, ...current]);
     pushLog(source === 'capture' ? 'captured' : 'created', stamp, task.id);
-    trackTaskCreated(nextTasks, source, stamp);
+
+    if (source === 'manual') {
+      trackManualAfterCapture(nextTasks, stamp);
+      trackQAEvent(
+        'manual_task_created',
+        {
+          source,
+          itemType: task.itemType
+        },
+        stamp,
+        nextTasks
+      );
+      showToast('Manual task saved. Capture is still the fastest path.');
+    } else {
+      showToast('Saved.');
+    }
+
     setActiveView('today');
-    showToast(source === 'capture' ? 'Task added.' : 'Added. I picked your next task.');
   }
 
   function updateTask(taskId: string, draft: TaskDraft) {
@@ -460,7 +491,7 @@ export default function App() {
     const stamp = new Date();
     setTasks((current) => current.filter((task) => task.id !== taskId));
     pushLog('deleted', stamp, taskId);
-    showToast('Task deleted.');
+    showToast('Item deleted.');
   }
 
   function snoozeTask(taskId: string) {
@@ -501,7 +532,7 @@ export default function App() {
   }
 
   function restoreSamples() {
-    if (!window.confirm('Replace your current data with sample tasks?')) {
+    if (!window.confirm('Replace your current data with sample items?')) {
       return;
     }
 
@@ -509,9 +540,16 @@ export default function App() {
     const restoredTasks = sampleTasks(stamp);
     setTasks(restoredTasks);
     setLogs([createLog('restoredSamples', stamp)]);
+    setCaptureText('');
+    setCaptureCandidates([]);
+    setCaptureOutcome(null);
+    captureFlowRef.current = {
+      hasExtraction: false,
+      manualAfterCaptureTracked: false
+    };
     trackQAEvent('sample_tasks_restored', {}, stamp, restoredTasks);
-    setActiveView('today');
-    showToast('Sample tasks restored.');
+    setActiveView('capture');
+    showToast('Sample items restored.');
   }
 
   function clearAll() {
@@ -524,52 +562,131 @@ export default function App() {
     setLogs([]);
     setCaptureText('');
     setCaptureCandidates([]);
+    setCaptureOutcome(null);
+    captureFlowRef.current = {
+      hasExtraction: false,
+      manualAfterCaptureTracked: false
+    };
     trackQAEvent('data_reset', {}, stamp, []);
-    setActiveView('today');
+    setActiveView('capture');
     showToast('All local data cleared.');
   }
 
-  function parseCaptureText() {
-    const candidates = extractTaskCandidates(captureText);
-    setCaptureCandidates(candidates);
-
-    if (captureText.trim()) {
-      trackQAEvent('capture_pasted', { captureCandidateCount: candidates.length });
-    }
-
-    if (candidates.length === 0) {
-      showToast('No clear tasks yet. Try pasting shorter lines.');
+  function runExtraction(input: string) {
+    if (!input.trim()) {
+      showToast('Paste a message or meeting note first.');
       return;
     }
 
-    showToast(`I found ${candidates.length} task suggestions.`);
+    const candidates = extractCaptureCandidates(input);
+    const counts = getItemCounts(candidates);
+
+    setCaptureCandidates(candidates);
+    setCaptureOutcome(null);
+    captureFlowRef.current = {
+      hasExtraction: true,
+      manualAfterCaptureTracked: false
+    };
+
+    trackQAEvent('extraction_run', {
+      detectedItemsCount: candidates.length,
+      captureCandidateCount: candidates.length,
+      extractedTaskCount: counts.task,
+      extractedEventCount: counts.event,
+      extractedReminderCount: counts.reminder
+    });
+
+    if (candidates.length === 0) {
+      showToast('No clear items yet. Try shorter lines or one note at a time.');
+      return;
+    }
+
+    showToast(`Detected ${candidates.length} ${candidates.length === 1 ? 'item' : 'items'}.`);
+  }
+
+  function parseCaptureText() {
+    runExtraction(captureText);
+  }
+
+  function trySampleCapture() {
+    setCaptureText(SAMPLE_CAPTURE_TEXT);
+    runExtraction(SAMPLE_CAPTURE_TEXT);
   }
 
   function saveCaptureCandidates() {
-    const selected = captureCandidates.filter((candidate) => candidate.selected);
+    const selected = captureCandidates
+      .filter((candidate) => candidate.selected && candidate.title.trim())
+      .map((candidate) => ({
+        ...candidate,
+        title: candidate.title.trim(),
+        memo: candidate.memo.trim()
+      }));
+
     if (selected.length === 0) {
-      showToast('Select at least one task to add.');
+      showToast('Select at least one item to save.');
       return;
     }
 
-    selected.forEach((candidate) => addTask(candidate, 'capture'));
+    const stamp = new Date();
+    const createdTasks = selected.map((candidate) => createTaskFromDraft(candidate, stamp, 'capture'));
+    const nextTasks = [...createdTasks, ...tasks];
+    const counts = getItemCounts(selected);
+    const outcome: CaptureOutcome = {
+      detectedCount: captureCandidates.length,
+      savedCount: selected.length,
+      savedTaskCount: counts.task,
+      savedEventCount: counts.event,
+      savedReminderCount: counts.reminder,
+      manualEntriesAvoidedApprox: selected.length
+    };
+
+    setTasks((current) => [...createdTasks, ...current]);
+    setLogs((current) => [
+      ...createdTasks.map((task) => createLog('captured', stamp, task.id)),
+      ...current
+    ].slice(0, 300));
     setCaptureText('');
     setCaptureCandidates([]);
-    showToast(`Added ${selected.length} ${selected.length === 1 ? 'task' : 'tasks'}.`);
+    setCaptureOutcome(outcome);
+    captureFlowRef.current = {
+      hasExtraction: true,
+      manualAfterCaptureTracked: false
+    };
+
+    trackQAEvent(
+      'capture_items_saved',
+      {
+        savedDetectedItemsCount: selected.length,
+        savedTaskCount: counts.task,
+        savedEventCount: counts.event,
+        savedReminderCount: counts.reminder,
+        manualEntriesAvoidedApprox: outcome.manualEntriesAvoidedApprox
+      },
+      stamp,
+      nextTasks
+    );
+
+    showToast('Saved. Now you do not have to retype it later.');
+  }
+
+  function updateCaptureCandidate(candidateId: string, updates: Partial<CaptureCandidate>) {
+    setCaptureCandidates((current) =>
+      current.map((candidate) => (candidate.id === candidateId ? { ...candidate, ...updates } : candidate))
+    );
   }
 
   function renderTodayView() {
     return (
       <section className="view">
-        <header className="hero-card">
-          <div className="eyebrow">What's Next</div>
-          <h1>One thing to do now.</h1>
-          <p>{greeting.status}</p>
-          <div className="hero-card__footer">
-            <span>{formatDateLabel(now)}</span>
-            <span>{formatTimeLabel(now)}</span>
-            <span>{greeting.greeting}</span>
+        <header className="screen-header">
+          <div>
+            <div className="eyebrow">Now</div>
+            <h1>One thing to follow up on.</h1>
+            <p>{greeting.status}</p>
           </div>
+          <button type="button" className="ghost-button" onClick={() => setActiveView('capture')}>
+            Capture more
+          </button>
         </header>
 
         <NowCard
@@ -578,19 +695,20 @@ export default function App() {
           onComplete={completeTask}
           onSnooze={snoozeTask}
           onSkipToday={skipToday}
-          onQuickAdd={() => setActiveView('add')}
+          onOpenCapture={() => setActiveView('capture')}
+          onManualAdd={() => setActiveView('add')}
         />
 
         <section className="summary-grid summary-grid--three">
           <article className="summary-card summary-card--quiet">
-            <div className="eyebrow">Waiting</div>
-            <strong>{activeTasks.length}</strong>
-            <p>Tasks still waiting for attention.</p>
+            <div className="eyebrow">Captured locally</div>
+            <strong>{capturedCount}</strong>
+            <p>Saved from pasted notes, messages, or plans.</p>
           </article>
           <article className="summary-card summary-card--quiet">
-            <div className="eyebrow">Done today</div>
-            <strong>{completedToday.length}</strong>
-            <p>{completedToday.length > 0 ? 'You already moved something forward.' : 'Nothing finished yet.'}</p>
+            <div className="eyebrow">Due soon</div>
+            <strong>{dueSoonCount}</strong>
+            <p>Items that look time-sensitive.</p>
           </article>
           <article className="summary-card summary-card--quiet">
             <div className="eyebrow">Often delayed</div>
@@ -602,11 +720,11 @@ export default function App() {
         <section className="panel panel--quiet">
           <div className="section-heading">
             <div>
-              <h2>Up next</h2>
-              <p>Still useful, just not first.</p>
+              <h2>Keep moving</h2>
+              <p>This list exists to support the follow-through layer, not replace Capture.</p>
             </div>
             <button type="button" className="ghost-button" onClick={() => setActiveView('add')}>
-              Add a task
+              Add manually
             </button>
           </div>
           <div className="stack">
@@ -623,7 +741,7 @@ export default function App() {
             ) : (
               <div className="empty-state">
                 <h3>Nothing else needs to compete right now.</h3>
-                <p>Add one task and I'll keep the next move ready.</p>
+                <p>Capture another message or add a fallback task if you need one.</p>
               </div>
             )}
           </div>
@@ -637,16 +755,16 @@ export default function App() {
       <section className="view">
         <header className="screen-header">
           <div>
-            <div className="eyebrow">Add</div>
-            <h1>Add a task</h1>
-            <p>Title is enough. I'll use sensible defaults and pick what to do next.</p>
+            <div className="eyebrow">Manual fallback</div>
+            <h1>Add manually</h1>
+            <p>Use this when there is nothing useful to capture.</p>
           </div>
         </header>
 
         <TaskEditor
-          title="Quick add"
-          description="Keep it simple. This should take about 10 seconds."
-          submitLabel="Add and pick next"
+          title="Add manually"
+          description="Keep it short. The point is to avoid typing whenever you can."
+          submitLabel="Save manual task"
           onSubmit={(draft) => addTask(draft)}
         />
       </section>
@@ -659,26 +777,29 @@ export default function App() {
         <header className="screen-header">
           <div>
             <div className="eyebrow">Tasks</div>
-            <h1>Tasks</h1>
-            <p>Everything here exists to support your next move.</p>
+            <h1>Saved items</h1>
+            <p>Tasks, events, and reminders saved locally after capture or manual fallback.</p>
           </div>
+          <button type="button" className="ghost-button" onClick={() => setActiveView('capture')}>
+            Capture more
+          </button>
         </header>
 
         <section className="summary-grid summary-grid--three">
           <article className="summary-card summary-card--quiet">
-            <div className="eyebrow">Done today</div>
-            <strong>{completedToday.length}</strong>
-            <p>Completed tasks from today.</p>
+            <div className="eyebrow">Tasks</div>
+            <strong>{savedItemCounts.task}</strong>
+            <p>Action items saved in the app.</p>
           </article>
           <article className="summary-card summary-card--quiet">
-            <div className="eyebrow">Waiting</div>
-            <strong>{activeTasks.length}</strong>
-            <p>Tasks still active.</p>
+            <div className="eyebrow">Events</div>
+            <strong>{savedItemCounts.event}</strong>
+            <p>Calendar-ready items saved locally for now.</p>
           </article>
           <article className="summary-card summary-card--quiet">
-            <div className="eyebrow">Often delayed</div>
-            <strong>{postponedTasks.length}</strong>
-            <p>{delaySummary.detail}</p>
+            <div className="eyebrow">Reminders</div>
+            <strong>{savedItemCounts.reminder}</strong>
+            <p>Follow-ups that should not disappear.</p>
           </article>
         </section>
 
@@ -709,10 +830,39 @@ export default function App() {
             ))
           ) : (
             <div className="empty-state">
-              <h3>No tasks in this view.</h3>
-              <p>Add one task and I'll pick what to do next.</p>
+              <h3>No saved items in this view.</h3>
+              <p>Paste a message or plan in Capture and we will fill this in for you.</p>
             </div>
           )}
+        </div>
+      </section>
+    );
+  }
+
+  function renderCaptureGroup(type: ItemType) {
+    const items = captureCandidates.filter((candidate) => candidate.itemType === type);
+
+    if (items.length === 0) {
+      return null;
+    }
+
+    return (
+      <section key={type} className="capture-group">
+        <div className="section-heading">
+          <div>
+            <h2>{ITEM_LABEL[type]}</h2>
+            <p>{items.length} detected</p>
+          </div>
+        </div>
+        <div className="stack">
+          {items.map((candidate) => (
+            <CaptureCandidateCard
+              key={candidate.id}
+              candidate={candidate}
+              onToggleSelected={(candidateId, selected) => updateCaptureCandidate(candidateId, { selected })}
+              onChange={updateCaptureCandidate}
+            />
+          ))}
         </div>
       </section>
     );
@@ -721,101 +871,126 @@ export default function App() {
   function renderCaptureView() {
     return (
       <section className="view">
-        <header className="screen-header">
-          <div>
-            <div className="eyebrow">Capture</div>
-            <h1>Paste messy notes. Get clean tasks.</h1>
-            <p>Paste a message, note, or email snippet. We only use what you paste here.</p>
+        <header className="hero-card hero-card--capture">
+          <div className="eyebrow">What's Next</div>
+          <h1>Stop retyping tasks and plans.</h1>
+          <p>
+            Paste a message or meeting note for now. What's Next turns it into tasks and calendar-ready
+            events.
+          </p>
+          <div className="hero-card__footer">
+            <span>Capture now. Decide later.</span>
+            <span>We only use what you paste here.</span>
+            <span>No automatic message reading in this PWA.</span>
           </div>
         </header>
 
-        <section className="panel">
-          <label className="field">
-            <span>Paste text</span>
+        <section className="panel panel--quiet roadmap-note">
+          <div className="section-heading">
+            <div>
+              <h2>Capture test</h2>
+              <p>Testing capture quality here. Native shortcuts and share-sheet capture come next.</p>
+            </div>
+          </div>
+          <p className="subcopy">
+            Share from Messages, Mail, Notes, or Calendar later. Save to Calendar and Reminders later.
+          </p>
+        </section>
+
+        <section className="panel panel--capture">
+          <label className="field field--spacious">
+            <span>Paste a message, meeting note, or plan</span>
             <textarea
-              rows={6}
+              rows={9}
               value={captureText}
               onChange={(event) => setCaptureText(event.target.value)}
-              placeholder="Example: Please send the first draft by tomorrow. Review the calendar before lunch."
+              placeholder="Example: Sarah can do a project check-in tomorrow at 3 PM on Zoom. Please send the revised intro before lunch and remember to book the dentist appointment this week."
             />
           </label>
-          <button type="button" className="primary-button" onClick={parseCaptureText}>
-            Suggest tasks
-          </button>
-          <p className="subcopy">We only use what you paste here.</p>
+          <div className="action-row">
+            <button type="button" className="primary-button" onClick={parseCaptureText}>
+              Extract
+            </button>
+            <button type="button" className="ghost-button" onClick={trySampleCapture}>
+              Try sample
+            </button>
+            <button type="button" className="secondary-button" onClick={() => setActiveView('add')}>
+              Add manually
+            </button>
+          </div>
+          <p className="subcopy">The PWA only works with text you paste here. Nothing is read automatically.</p>
         </section>
+
+        {captureOutcome ? (
+          <section className="panel panel--success">
+            <div className="section-heading">
+              <div>
+                <h2>Typing saved</h2>
+                <p>Saved. Now you do not have to retype it later.</p>
+              </div>
+              <button type="button" className="secondary-button" onClick={() => setActiveView('today')}>
+                View what's next
+              </button>
+            </div>
+            <div className="summary-grid summary-grid--three">
+              <article className="summary-card summary-card--quiet">
+                <div className="eyebrow">Detected</div>
+                <strong>{captureOutcome.detectedCount}</strong>
+                <p>Items found in the pasted text.</p>
+              </article>
+              <article className="summary-card summary-card--quiet">
+                <div className="eyebrow">Saved</div>
+                <strong>{captureOutcome.savedCount}</strong>
+                <p>
+                  {captureOutcome.savedTaskCount} tasks, {captureOutcome.savedEventCount} events,{' '}
+                  {captureOutcome.savedReminderCount} reminders
+                </p>
+              </article>
+              <article className="summary-card summary-card--quiet">
+                <div className="eyebrow">Typing saved</div>
+                <strong>{captureOutcome.manualEntriesAvoidedApprox}</strong>
+                <p>{getCaptureOutcomeText(captureOutcome.manualEntriesAvoidedApprox)}</p>
+              </article>
+            </div>
+          </section>
+        ) : null}
 
         <section className="panel panel--quiet">
           <div className="section-heading">
             <div>
-              <h2>Suggested tasks</h2>
-              <p>Pick the ones worth keeping.</p>
+              <h2>Detected items</h2>
+              <p>
+                {captureCandidates.length > 0
+                  ? 'Select what to keep. Edit anything before you save it.'
+                  : 'Paste something messy and we will sort it into tasks, events, and reminders.'}
+              </p>
             </div>
-            <button type="button" className="secondary-button" onClick={saveCaptureCandidates}>
-              Add selected
-            </button>
+            {captureCandidates.length > 0 ? (
+              <button type="button" className="secondary-button" onClick={saveCaptureCandidates}>
+                Save selected
+              </button>
+            ) : null}
           </div>
 
-          <div className="stack">
-            {captureCandidates.length > 0 ? (
-              captureCandidates.map((candidate) => (
-                <article key={candidate.id} className="task-card">
-                  <div className="task-card__body">
-                    <label className="candidate-toggle">
-                      <input
-                        type="checkbox"
-                        checked={candidate.selected}
-                        onChange={(event) =>
-                          setCaptureCandidates((current) =>
-                            current.map((item) =>
-                              item.id === candidate.id ? { ...item, selected: event.target.checked } : item
-                            )
-                          )
-                        }
-                      />
-                      <span>Select</span>
-                    </label>
-                    <input
-                      className="candidate-input"
-                      value={candidate.title}
-                      onChange={(event) =>
-                        setCaptureCandidates((current) =>
-                          current.map((item) =>
-                            item.id === candidate.id ? { ...item, title: event.target.value } : item
-                          )
-                        )
-                      }
-                    />
-                    <div className="meta-row">
-                      <span>{candidate.durationMinutes} min</span>
-                      {candidate.due !== 'none' ? <span>{getDueLabel(candidate.due)}</span> : null}
-                      {candidate.preferredTime !== 'anytime' ? (
-                        <span>{BEST_TIME_LABEL[candidate.preferredTime]}</span>
-                      ) : null}
-                    </div>
-                    <p className="task-card__memo">{candidate.rawText}</p>
-                  </div>
-                  <div className="task-card__actions">
-                    <button
-                      type="button"
-                      className="tiny-button primary"
-                      onClick={() => {
-                        addTask(candidate, 'capture');
-                        setCaptureCandidates((current) => current.filter((item) => item.id !== candidate.id));
-                      }}
-                    >
-                      Add this
-                    </button>
-                  </div>
-                </article>
-              ))
-            ) : (
-              <div className="empty-state">
-                <h3>No suggestions yet.</h3>
-                <p>Paste something and I'll turn it into task ideas.</p>
+          {captureCandidates.length > 0 ? (
+            <>
+              <div className="meta-row meta-row--summary">
+                <span>{captureCandidateCounts.task} tasks</span>
+                <span>{captureCandidateCounts.event} events</span>
+                <span>{captureCandidateCounts.reminder} reminders</span>
               </div>
-            )}
-          </div>
+              <div className="stack">
+                {renderCaptureGroup('task')}
+                {renderCaptureGroup('event')}
+                {renderCaptureGroup('reminder')}
+              </div>
+            </>
+          ) : (
+            <div className="empty-state">
+              <h3>No extraction yet.</h3>
+              <p>Throw messy text here first. The point is to avoid organizing it by hand.</p>
+            </div>
+          )}
         </section>
       </section>
     );
@@ -828,18 +1003,23 @@ export default function App() {
           <div>
             <div className="eyebrow">Settings</div>
             <h1>Settings</h1>
-            <p>Keep it light. This is just enough to test the product properly.</p>
+            <p>Just enough to test the capture-first product honestly.</p>
           </div>
         </header>
 
         <section className="panel panel--quiet">
           <h2>Privacy</h2>
-          <p>Your tasks stay on this device. No account. No server. No tracking.</p>
+          <p>We only use what you paste here. No automatic message reading in this PWA.</p>
+        </section>
+
+        <section className="panel panel--quiet">
+          <h2>Native direction</h2>
+          <p>Share sheet capture, Calendar save, Reminders save, widgets, and App Intents belong in native iOS.</p>
         </section>
 
         <section className="panel panel--quiet">
           <h2>Home Screen test</h2>
-          <p>Add What's Next to your iPhone Home Screen and use it for three days before deciding on native iOS.</p>
+          <p>Add What's Next to your iPhone Home Screen and use it for three days before paying for native work.</p>
         </section>
 
         {qaMode ? (
@@ -858,7 +1038,7 @@ export default function App() {
           <h2>Data</h2>
           <div className="stack">
             <button type="button" className="secondary-button" onClick={restoreSamples}>
-              Restore sample tasks
+              Restore sample items
             </button>
             <button type="button" className="ghost-button danger-text" onClick={clearAll}>
               Reset data
@@ -868,7 +1048,7 @@ export default function App() {
 
         <section className="panel panel--quiet">
           <h2>Version</h2>
-          <p>PWA v0.1</p>
+          <p>PWA capture test v0.1</p>
         </section>
       </section>
     );
@@ -903,8 +1083,8 @@ export default function App() {
           <div className="modal-sheet" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
             <TaskEditor
               initialValue={editingTask}
-              title="Edit task"
-              description="Keep it fast. Save the smallest useful change."
+              title="Edit item"
+              description="Keep the smallest useful edit. The point is still to move fast."
               submitLabel="Save changes"
               onSubmit={(draft) => updateTask(editingTask.id, draft)}
               onCancel={() => setEditingTask(null)}

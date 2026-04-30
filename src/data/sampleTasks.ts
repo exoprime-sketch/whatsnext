@@ -10,7 +10,8 @@ export function sampleTasks(now: Date): Task[] {
         durationMinutes: 10,
         importance: 'high',
         due: 'today',
-        preferredTime: 'morning'
+        preferredTime: 'morning',
+        itemType: 'task'
       },
       now,
       'sample'
@@ -22,31 +23,39 @@ export function sampleTasks(now: Date): Task[] {
         durationMinutes: 10,
         importance: 'high',
         due: 'today',
-        preferredTime: 'afternoon'
+        preferredTime: 'afternoon',
+        itemType: 'task'
       },
       now,
       'sample'
     ),
     createTaskFromDraft(
       {
-        title: 'Draft the first paragraph',
-        memo: "Don't finish it. Just start it.",
+        title: 'Project check-in',
+        memo: 'An example of a calendar-ready event saved locally in the PWA.',
         durationMinutes: 30,
-        importance: 'high',
-        due: 'thisWeek',
-        preferredTime: 'morning'
+        importance: 'medium',
+        due: 'tomorrow',
+        preferredTime: 'afternoon',
+        itemType: 'event',
+        dateLabel: 'Tomorrow',
+        timeLabel: '3:00 PM',
+        personLabel: 'Design team',
+        locationLabel: 'Zoom'
       },
       now,
       'sample'
     ),
     createTaskFromDraft(
       {
-        title: 'Clear inbox for 10 minutes',
-        memo: 'A short pass is enough.',
+        title: 'Follow up with finance',
+        memo: 'A reminder can stay lightweight too.',
         durationMinutes: 10,
         importance: 'medium',
-        due: 'today',
-        preferredTime: 'afternoon'
+        due: 'thisWeek',
+        preferredTime: 'morning',
+        itemType: 'reminder',
+        personLabel: 'Finance'
       },
       now,
       'sample'
@@ -58,7 +67,8 @@ export function sampleTasks(now: Date): Task[] {
         durationMinutes: 5,
         importance: 'medium',
         due: 'today',
-        preferredTime: 'evening'
+        preferredTime: 'evening',
+        itemType: 'task'
       },
       now,
       'sample'
@@ -70,19 +80,8 @@ export function sampleTasks(now: Date): Task[] {
         durationMinutes: 15,
         importance: 'low',
         due: 'none',
-        preferredTime: 'afternoon'
-      },
-      now,
-      'sample'
-    ),
-    createTaskFromDraft(
-      {
-        title: 'Clean up your desk',
-        memo: 'Make the next work block easier to enter.',
-        durationMinutes: 10,
-        importance: 'low',
-        due: 'none',
-        preferredTime: 'evening'
+        preferredTime: 'afternoon',
+        itemType: 'task'
       },
       now,
       'sample'

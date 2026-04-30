@@ -14,6 +14,12 @@ const TIME_LABEL = {
   anytime: 'Any time'
 } as const;
 
+const TYPE_LABEL = {
+  task: 'Task',
+  event: 'Event',
+  reminder: 'Reminder'
+} as const;
+
 interface TaskCardProps {
   task: Task;
   showStatus?: boolean;
@@ -29,7 +35,7 @@ export function TaskCard({
   onEdit,
   onDelete
 }: TaskCardProps) {
-  const metaItems = [`${task.durationMinutes} min`];
+  const metaItems = [TYPE_LABEL[task.itemType], `${task.durationMinutes} min`];
 
   if (task.due !== 'none') {
     metaItems.push(getDueLabel(task.due));
@@ -43,18 +49,40 @@ export function TaskCard({
     metaItems.push(TIME_LABEL[task.preferredTime]);
   }
 
+  if (task.dateLabel) {
+    metaItems.push(task.dateLabel);
+  }
+
+  if (task.timeLabel) {
+    metaItems.push(task.timeLabel);
+  }
+
+  if (task.personLabel) {
+    metaItems.push(task.personLabel);
+  }
+
+  if (task.locationLabel) {
+    metaItems.push(task.locationLabel);
+  }
+
   const delayedCount = task.snoozeCount + task.negativeFeedbackCount;
 
   return (
     <article className="task-card">
       <div className="task-card__body">
         <div className="task-card__header">
-          <h3>{task.title}</h3>
-          {showStatus ? (
-            <span className={`status-pill ${task.status === 'completed' ? 'is-done' : ''}`}>
-              {task.status === 'completed' ? 'Done' : 'Waiting'}
-            </span>
-          ) : null}
+          <div className="stack stack--tight">
+            <div className="task-badge-row">
+              <span className={`type-pill type-pill--${task.itemType}`}>{TYPE_LABEL[task.itemType]}</span>
+              {task.source === 'capture' ? <span className="status-pill">Captured</span> : null}
+              {showStatus ? (
+                <span className={`status-pill ${task.status === 'completed' ? 'is-done' : ''}`}>
+                  {task.status === 'completed' ? 'Done' : 'Waiting'}
+                </span>
+              ) : null}
+            </div>
+            <h3>{task.title}</h3>
+          </div>
         </div>
         <div className="meta-row">
           {metaItems.map((item) => (

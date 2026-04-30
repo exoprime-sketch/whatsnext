@@ -92,7 +92,7 @@ export function TaskEditor({
         </div>
         {onCancel ? (
           <button type="button" className="ghost-button" onClick={onCancel}>
-            Close
+            Back
           </button>
         ) : null}
       </div>
@@ -113,7 +113,7 @@ export function TaskEditor({
           rows={3}
           value={draft.memo}
           onChange={(event) => setDraft((current) => ({ ...current, memo: event.target.value }))}
-          placeholder="Add a little context if it helps"
+          placeholder="Use this only when a little context helps."
         />
       </label>
 
@@ -176,7 +176,7 @@ export function TaskEditor({
       <button type="submit" className="primary-button" disabled={!draft.title.trim()}>
         {submitLabel}
       </button>
-      <p className="subcopy">Title is enough. Everything else can stay on sensible defaults.</p>
+      <p className="subcopy">Use manual add only when there is nothing useful to capture.</p>
     </form>
   );
 }

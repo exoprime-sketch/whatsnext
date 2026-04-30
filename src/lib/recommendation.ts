@@ -37,7 +37,7 @@ function getTimeFitReason(timeBand: TimeBand) {
     case 'afternoon':
       return 'This fits the middle of the day well.';
     case 'evening':
-      return 'This is a good evening task.';
+      return 'This is a good evening follow-up.';
     case 'night':
       return 'This is light enough for late hours.';
   }
@@ -45,7 +45,7 @@ function getTimeFitReason(timeBand: TimeBand) {
 
 function getDurationReason(durationMinutes: Task['durationMinutes']) {
   if (durationMinutes <= 15) {
-    return 'It fits a short work session.';
+    return 'This is small enough to start now.';
   }
 
   return 'Small enough to start without blocking your whole hour.';
@@ -58,6 +58,18 @@ function wasRecentlyRejected(task: Task, now: Date) {
 
   const diff = now.getTime() - new Date(task.lastFeedbackAt).getTime();
   return diff < 24 * 60 * 60 * 1000;
+}
+
+function getSourceReason(task: Task) {
+  if (task.source !== 'capture') {
+    return null;
+  }
+
+  if (task.itemType === 'event') {
+    return 'You saved this from a message.';
+  }
+
+  return 'This came from your captured note.';
 }
 
 export function scoreTask(task: Task, now: Date) {
@@ -77,9 +89,28 @@ export function scoreTask(task: Task, now: Date) {
   const currentBand = getTimeBand(now);
   let score = 0;
   const reasons: string[] = [];
+  const sourceReason = getSourceReason(task);
+
+  if (sourceReason) {
+    reasons.push(sourceReason);
+  }
 
   score += IMPORTANCE_SCORE[task.importance];
   score += DUE_SCORE[task.due];
+
+  if (task.itemType === 'event') {
+    score -= 8;
+
+    if (task.due === 'today' || task.timeLabel) {
+      score += 18;
+      reasons.push('This looks time-sensitive.');
+    }
+  }
+
+  if (task.itemType === 'reminder') {
+    score += 8;
+    reasons.push('This is a small follow-up you can clear quickly.');
+  }
 
   if (task.due === 'today') {
     reasons.push('This is due today.');
@@ -117,7 +148,7 @@ export function scoreTask(task: Task, now: Date) {
   }
 
   if (reasons.length === 0) {
-    reasons.push('Small enough to start now.');
+    reasons.push('This is small enough to start now.');
   }
 
   return { score, reasons };

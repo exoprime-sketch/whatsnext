@@ -30,7 +30,7 @@ export function FounderQAPanel({
       <div className="section-heading">
         <div>
           <h2>Founder QA</h2>
-          <p>Local-only test signals. Nothing leaves this device unless you export it.</p>
+          <p>Local-only test signals for input reduction. Exports exclude pasted text and task titles by default.</p>
         </div>
         <button type="button" className="ghost-button" onClick={onDisable}>
           Disable QA mode
@@ -39,31 +39,55 @@ export function FounderQAPanel({
 
       <div className="qa-metrics-grid">
         <article className="summary-card summary-card--quiet qa-metric-card">
-          <div className="eyebrow">Opens</div>
-          <strong>{summary.totalAppOpens}</strong>
-          <p>{summary.standaloneOpens} from Home Screen</p>
-        </article>
-        <article className="summary-card summary-card--quiet qa-metric-card">
-          <div className="eyebrow">Active days</div>
-          <strong>{summary.activeDays}</strong>
-          <p>Day 2: {summary.returnedOnDay2 ? 'Yes' : 'No'} | Day 3: {summary.returnedOnDay3 ? 'Yes' : 'No'}</p>
-        </article>
-        <article className="summary-card summary-card--quiet qa-metric-card">
-          <div className="eyebrow">Tasks added</div>
-          <strong>{summary.totalTasksCreated}</strong>
-          <p>{summary.currentActiveTaskCount} active | {summary.currentCompletedTaskCount} done</p>
-        </article>
-        <article className="summary-card summary-card--quiet qa-metric-card">
-          <div className="eyebrow">Done clicks</div>
-          <strong>{summary.totalDoneClicks}</strong>
-          <p>Later: {summary.totalLaterClicks} | Not today: {summary.totalNotTodayClicks}</p>
-        </article>
-        <article className="summary-card summary-card--quiet qa-metric-card">
-          <div className="eyebrow">Capture saves</div>
-          <strong>{summary.captureSavedCount}</strong>
+          <div className="eyebrow">Extraction runs</div>
+          <strong>{summary.extractionRuns}</strong>
           <p>Capture opened {summary.captureOpenedCount} times</p>
         </article>
+        <article className="summary-card summary-card--quiet qa-metric-card">
+          <div className="eyebrow">Detected items</div>
+          <strong>{summary.detectedItemsCount}</strong>
+          <p>{summary.savedDetectedItemsCount} saved from capture</p>
+        </article>
+        <article className="summary-card summary-card--quiet qa-metric-card">
+          <div className="eyebrow">Typing saved</div>
+          <strong>{summary.manualEntriesAvoidedApprox}</strong>
+          <p>Approx manual entries avoided</p>
+        </article>
+        <article className="summary-card summary-card--quiet qa-metric-card">
+          <div className="eyebrow">Manual adds</div>
+          <strong>{summary.manualTaskCreatedCount}</strong>
+          <p>Capture vs manual: {summary.captureVsManualRatio}</p>
+        </article>
+        <article className="summary-card summary-card--quiet qa-metric-card">
+          <div className="eyebrow">Events</div>
+          <strong>{summary.eventDetections}</strong>
+          <p>{summary.captureSavedEventCount} saved locally</p>
+        </article>
+        <article className="summary-card summary-card--quiet qa-metric-card">
+          <div className="eyebrow">Reminders</div>
+          <strong>{summary.reminderDetections}</strong>
+          <p>{summary.captureSavedReminderCount} saved locally</p>
+        </article>
       </div>
+
+      <section className="panel panel--nested">
+        <div className="section-heading">
+          <div>
+            <h2>Retention and follow-through</h2>
+            <p>These still matter after capture becomes the front door.</p>
+          </div>
+        </div>
+        <div className="qa-inline-metrics">
+          <span>Opens: {summary.totalAppOpens}</span>
+          <span>Home Screen: {summary.standaloneOpens}</span>
+          <span>Day 2: {summary.returnedOnDay2 ? 'Yes' : 'No'}</span>
+          <span>Day 3: {summary.returnedOnDay3 ? 'Yes' : 'No'}</span>
+          <span>Done: {summary.totalDoneClicks}</span>
+          <span>Later: {summary.totalLaterClicks}</span>
+          <span>Not today: {summary.totalNotTodayClicks}</span>
+          <span>Manual after capture: {summary.usedManualAddAfterCaptureCount}</span>
+        </div>
+      </section>
 
       <div className="qa-actions">
         <button type="button" className="secondary-button" onClick={onCopySummary}>
@@ -79,12 +103,12 @@ export function FounderQAPanel({
 
       <div className="stack">
         <label className="field">
-          <span>What felt annoying or unclear?</span>
+          <span>What still felt too manual?</span>
           <textarea
             rows={3}
             value={note}
             onChange={(event) => setNote(event.target.value)}
-            placeholder="Example: I understood the card, but I was not sure when to use Later vs Not today."
+            placeholder="Example: Extraction found the meeting, but I still wished I could share directly from Messages."
           />
         </label>
 

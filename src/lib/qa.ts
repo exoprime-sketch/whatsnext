@@ -44,6 +44,20 @@ function readRawQAData() {
   }
 }
 
+function eventMatches(event: QAEvent, names: QAEventName[]) {
+  return names.includes(event.eventName);
+}
+
+function countEvents(events: QAEvent[], names: QAEventName[]) {
+  return events.filter((event) => eventMatches(event, names)).length;
+}
+
+function sumMetadata(events: QAEvent[], names: QAEventName[], key: keyof QAEventMetadata) {
+  return events
+    .filter((event) => eventMatches(event, names))
+    .reduce((total, event) => total + Number(event.metadata?.[key] ?? 0), 0);
+}
+
 export function getDisplayMode(): DisplayMode {
   const navigatorWithStandalone = navigator as Navigator & { standalone?: boolean };
 
@@ -108,14 +122,8 @@ export function createQAFeedback(note: string, rating: QARating | '', timestamp:
   };
 }
 
-function countEvents(events: QAEvent[], eventName: QAEventName) {
-  return events.filter((event) => event.eventName === eventName).length;
-}
-
-function sumCaptureSaves(events: QAEvent[]) {
-  return events
-    .filter((event) => event.eventName === 'capture_candidate_saved')
-    .reduce((total, event) => total + (event.metadata?.captureCandidateCount ?? 1), 0);
+function formatRatio(captureCount: number, manualCount: number) {
+  return `${captureCount}:${manualCount}`;
 }
 
 export function buildQASummary(events: QAEvent[], tasks: Task[]): QASummary {
@@ -126,22 +134,55 @@ export function buildQASummary(events: QAEvent[], tasks: Task[]): QASummary {
   const openDateKeys = [...new Set(openEvents.map((event) => event.dateKey))];
   const firstOpenDateKey = openDateKeys[0] ?? null;
 
+  const extractionRuns = countEvents(events, ['extraction_run']);
+  const detectedItemsCount =
+    sumMetadata(events, ['extraction_run'], 'detectedItemsCount') +
+    sumMetadata(events, ['capture_pasted'], 'captureCandidateCount');
+  const savedDetectedItemsCount =
+    sumMetadata(events, ['capture_items_saved'], 'savedDetectedItemsCount') +
+    sumMetadata(events, ['capture_candidate_saved'], 'captureCandidateCount');
+  const manualTaskCreatedCount =
+    countEvents(events, ['manual_task_created']) +
+    events.filter((event) => event.eventName === 'task_created' && event.metadata?.source === 'manual').length;
+  const captureSavedTaskCount =
+    sumMetadata(events, ['capture_items_saved'], 'savedTaskCount') +
+    sumMetadata(events, ['capture_candidate_saved'], 'captureCandidateCount');
+  const captureSavedEventCount = sumMetadata(events, ['capture_items_saved'], 'savedEventCount');
+  const captureSavedReminderCount = sumMetadata(events, ['capture_items_saved'], 'savedReminderCount');
+  const manualEntriesAvoidedApprox = sumMetadata(events, ['capture_items_saved'], 'manualEntriesAvoidedApprox');
+  const eventDetections = sumMetadata(events, ['extraction_run'], 'extractedEventCount');
+  const reminderDetections = sumMetadata(events, ['extraction_run'], 'extractedReminderCount');
+
   return {
     firstOpenAt,
     lastOpenAt,
     activeDays: openDateKeys.length,
     totalAppOpens: openEvents.length,
-    standaloneOpens: countEvents(events, 'standalone_open'),
-    totalTasksCreated: countEvents(events, 'task_created'),
-    totalDoneClicks: countEvents(events, 'now_card_done'),
-    totalLaterClicks: countEvents(events, 'now_card_later'),
-    totalNotTodayClicks: countEvents(events, 'now_card_not_today'),
-    captureOpenedCount: countEvents(events, 'capture_opened'),
-    captureSavedCount: sumCaptureSaves(events),
+    standaloneOpens: countEvents(events, ['standalone_open']),
+    totalDoneClicks: countEvents(events, ['now_card_done']),
+    totalLaterClicks: countEvents(events, ['now_card_later']),
+    totalNotTodayClicks: countEvents(events, ['now_card_not_today']),
+    captureOpenedCount: countEvents(events, ['capture_opened']),
+    extractionRuns,
+    detectedItemsCount,
+    savedDetectedItemsCount,
+    manualTaskCreatedCount,
+    manualEntriesAvoidedApprox,
+    captureSavedTaskCount,
+    captureSavedEventCount,
+    captureSavedReminderCount,
+    captureToSaveConversion: detectedItemsCount > 0 ? savedDetectedItemsCount / detectedItemsCount : 0,
+    usedManualAddAfterCaptureCount: countEvents(events, ['used_manual_add_after_capture']),
+    eventDetections,
+    reminderDetections,
     returnedOnDay2: firstOpenDateKey ? openDateKeys.includes(addDays(firstOpenDateKey, 1)) : false,
     returnedOnDay3: firstOpenDateKey ? openDateKeys.includes(addDays(firstOpenDateKey, 2)) : false,
     currentActiveTaskCount: tasks.filter((task) => task.status === 'active').length,
-    currentCompletedTaskCount: tasks.filter((task) => task.status === 'completed').length
+    currentCompletedTaskCount: tasks.filter((task) => task.status === 'completed').length,
+    currentTaskCount: tasks.filter((task) => task.itemType === 'task').length,
+    currentEventCount: tasks.filter((task) => task.itemType === 'event').length,
+    currentReminderCount: tasks.filter((task) => task.itemType === 'reminder').length,
+    captureVsManualRatio: formatRatio(savedDetectedItemsCount, manualTaskCreatedCount)
   };
 }
 
@@ -153,16 +194,28 @@ export function buildQASummaryText(summary: QASummary, feedback: QAFeedback[]) {
     `Active days: ${summary.activeDays}`,
     `Opens: ${summary.totalAppOpens}`,
     `Standalone opens: ${summary.standaloneOpens}`,
-    `Tasks added: ${summary.totalTasksCreated}`,
+    `Capture opened: ${summary.captureOpenedCount}`,
+    `Extraction runs: ${summary.extractionRuns}`,
+    `Detected items: ${summary.detectedItemsCount}`,
+    `Saved detected items: ${summary.savedDetectedItemsCount}`,
+    `Manual entries avoided approx: ${summary.manualEntriesAvoidedApprox}`,
+    `Manual adds: ${summary.manualTaskCreatedCount}`,
+    `Capture vs manual ratio: ${summary.captureVsManualRatio}`,
+    `Capture-to-save conversion: ${Math.round(summary.captureToSaveConversion * 100)}%`,
+    `Saved tasks: ${summary.captureSavedTaskCount}`,
+    `Saved events: ${summary.captureSavedEventCount}`,
+    `Saved reminders: ${summary.captureSavedReminderCount}`,
+    `Event detections: ${summary.eventDetections}`,
+    `Reminder detections: ${summary.reminderDetections}`,
+    `Used manual add after capture: ${summary.usedManualAddAfterCaptureCount}`,
     `Done clicks: ${summary.totalDoneClicks}`,
     `Later clicks: ${summary.totalLaterClicks}`,
     `Not today clicks: ${summary.totalNotTodayClicks}`,
-    `Capture opened: ${summary.captureOpenedCount}`,
-    `Capture saves: ${summary.captureSavedCount}`,
     `Returned on Day 2: ${summary.returnedOnDay2 ? 'Yes' : 'No'}`,
     `Returned on Day 3: ${summary.returnedOnDay3 ? 'Yes' : 'No'}`,
-    `Current active tasks: ${summary.currentActiveTaskCount}`,
-    `Current completed tasks: ${summary.currentCompletedTaskCount}`
+    `Current saved tasks: ${summary.currentTaskCount}`,
+    `Current saved events: ${summary.currentEventCount}`,
+    `Current saved reminders: ${summary.currentReminderCount}`
   ];
 
   if (feedback.length > 0) {
@@ -181,6 +234,8 @@ export function buildQAExport(data: QAData, summary: QASummary) {
     app: "What's Next",
     mode: 'founder-qa',
     exportedAt: new Date().toISOString(),
+    includesPastedText: false,
+    includesTaskTitles: false,
     summary,
     feedback: data.feedback,
     events: data.events

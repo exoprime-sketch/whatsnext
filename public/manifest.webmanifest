@@ -4,9 +4,9 @@
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#101214",
-  "theme_color": "#101214",
-  "description": "A decision-reducing daily planner that tells you one thing to do now.",
+  "background_color": "#f7f1e6",
+  "theme_color": "#f7f1e6",
+  "description": "Paste a message or note to turn it into tasks, reminders, and calendar-ready events without retyping.",
   "icons": [
     {
       "src": "./icon-192.png",
