@@ -8,7 +8,7 @@ enum CaptureParser {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { $0.count >= 4 }
 
-        let candidates = fragments.compactMap { fragment in
+        let candidates: [CaptureCandidate] = fragments.compactMap { fragment -> CaptureCandidate? in
             let title = actionTitle(from: fragment)
             guard !title.isEmpty, title.count >= 3 else { return nil }
 
