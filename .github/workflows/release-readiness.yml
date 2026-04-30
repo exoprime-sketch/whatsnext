@@ -1,0 +1,51 @@
+name: Release Readiness
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release-readiness:
+    name: Release Readiness Audit
+    runs-on: macos-15
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install web dependencies
+        run: npm ci
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Strict release blocker check
+        run: npm run check:release:strict
+
+      - name: Build web app
+        run: npm run ci:web
+
+      - name: Build iOS simulator target
+        run: bash scripts/ci/build-ios-simulator.sh
+
+      - name: Upload release audit artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-readiness-artifacts
+          path: |
+            dist
+            .artifacts/ios
+          if-no-files-found: warn

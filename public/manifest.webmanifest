@@ -1,0 +1,17 @@
+{
+  "name": "What's Next / 오늘하나",
+  "short_name": "오늘하나",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8f2e7",
+  "theme_color": "#f6efe4",
+  "description": "지금 해야 할 일 하나를 추천해주는 개인 하루 비서 앱",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
