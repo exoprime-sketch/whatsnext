@@ -5,8 +5,10 @@ import { FounderQAPanel } from './components/FounderQAPanel';
 import { NowCard } from './components/NowCard';
 import { TaskCard } from './components/TaskCard';
 import { TaskEditor } from './components/TaskEditor';
+import { UpcomingPanel } from './components/UpcomingPanel';
 import { sampleTasks } from './data/sampleTasks';
-import { extractCaptureCandidates, SAMPLE_CAPTURE_TEXT } from './lib/capture';
+import { canExportICS, copyEventDetails, downloadICS } from './lib/calendarExport';
+import { extractCaptureCandidates, refreshCaptureCandidate, SAMPLE_CAPTURE_TEXT } from './lib/capture';
 import {
   buildQAExport,
   buildQASummary,
@@ -23,13 +25,17 @@ import {
 import { getNowRecommendation, scoreTask, sortTasksByRecommendation } from './lib/recommendation';
 import { loadAppData, saveAppData } from './lib/storage';
 import {
+  applyDraftScheduling,
   applyFeedback,
   createLog,
   createTaskFromDraft,
   getPostponeWeight,
-  normalizeTasksForToday
+  incrementCalendarExport,
+  incrementCopiedDetails,
+  normalizeTasksForToday,
+  updateAlarmPreference
 } from './lib/tasks';
-import { formatDateLabel, formatTimeLabel, getGreetingCopy, plusMinutes, toDateKey } from './lib/time';
+import { addDays, getGreetingCopy, plusMinutes, toDateKey } from './lib/time';
 import type {
   ActivityLog,
   AppView,
@@ -66,6 +72,9 @@ interface CaptureOutcome {
   savedEventCount: number;
   savedReminderCount: number;
   manualEntriesAvoidedApprox: number;
+  calendarReadyCount: number;
+  needsDateReviewCount: number;
+  needsTimeReviewCount: number;
 }
 
 function getCompleteMessage(date: Date, nextTaskTitle?: string) {
@@ -80,6 +89,7 @@ function getCompleteMessage(date: Date, nextTaskTitle?: string) {
 
 function getVisibleTasks(filter: TaskFilter, tasks: Task[], now: Date) {
   const ranked = sortTasksByRecommendation(tasks, now);
+  const todayKey = toDateKey(now);
 
   if (filter === 'completed') {
     return ranked
@@ -92,11 +102,18 @@ function getVisibleTasks(filter: TaskFilter, tasks: Task[], now: Date) {
   }
 
   if (filter === 'today') {
+    const tomorrowKey = toDateKey(addDays(now, 1));
     return ranked.filter(
       (task) =>
         task.status === 'active' &&
-        (!task.excludedToday || task.excludedOnDate !== toDateKey(now)) &&
-        (!task.snoozeUntil || new Date(task.snoozeUntil).getTime() <= now.getTime())
+        (!task.excludedToday || task.excludedOnDate !== todayKey) &&
+        (!task.snoozeUntil || new Date(task.snoozeUntil).getTime() <= now.getTime()) &&
+        (task.due === 'today' ||
+          task.due === 'tomorrow' ||
+          task.parsedDate === todayKey ||
+          task.parsedDate === tomorrowKey ||
+          task.needsDateReview ||
+          task.needsTimeReview)
     );
   }
 
@@ -138,6 +155,30 @@ function getItemCounts<T extends { itemType: ItemType }>(items: T[]) {
   );
 }
 
+function getReviewCounts<T extends { needsDateReview?: boolean; needsTimeReview?: boolean }>(items: T[]) {
+  return items.reduce(
+    (counts, item) => {
+      if (item.needsDateReview) {
+        counts.needsDateReviewCount += 1;
+      }
+
+      if (item.needsTimeReview) {
+        counts.needsTimeReviewCount += 1;
+      }
+
+      return counts;
+    },
+    {
+      needsDateReviewCount: 0,
+      needsTimeReviewCount: 0
+    }
+  );
+}
+
+function getCalendarReadyCount<T extends { calendarReady?: boolean }>(items: T[]) {
+  return items.filter((item) => item.calendarReady).length;
+}
+
 function getCaptureOutcomeText(count: number) {
   return `About ${count} manual ${count === 1 ? 'entry' : 'entries'} avoided.`;
 }
@@ -150,6 +191,7 @@ export default function App() {
   const [activeView, setActiveView] = useState<AppView>('capture');
   const [listFilter, setListFilter] = useState<TaskFilter>('all');
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [manualEditorOpen, setManualEditorOpen] = useState(false);
   const [captureText, setCaptureText] = useState('');
   const [captureCandidates, setCaptureCandidates] = useState<CaptureCandidate[]>([]);
   const [captureOutcome, setCaptureOutcome] = useState<CaptureOutcome | null>(null);
@@ -168,18 +210,6 @@ export default function App() {
   const sortedTasks = sortTasksByRecommendation(tasks, now);
   const visibleTasks = getVisibleTasks(listFilter, tasks, now);
   const activeTasks = tasks.filter((task) => task.status === 'active');
-  const completedToday = tasks
-    .filter(
-      (task) =>
-        task.status === 'completed' &&
-        task.completedAt &&
-        toDateKey(new Date(task.completedAt)) === toDateKey(now)
-    )
-    .sort(
-      (left, right) =>
-        new Date(right.completedAt ?? right.createdAt).getTime() -
-        new Date(left.completedAt ?? left.createdAt).getTime()
-    );
   const postponedTasks = tasks
     .filter((task) => task.status === 'active' && getPostponeWeight(task) > 0)
     .sort((left, right) => getPostponeWeight(right) - getPostponeWeight(left));
@@ -194,12 +224,31 @@ export default function App() {
   const delaySummary = getDelaySummary(postponedTasks);
   const qaSummary = buildQASummary(qaData.events, tasks);
   const captureCandidateCounts = getItemCounts(captureCandidates);
+  const captureReviewCounts = getReviewCounts(captureCandidates);
   const savedItemCounts = getItemCounts(tasks);
-  const dueSoonCount = activeTasks.filter((task) => task.due === 'today' || task.due === 'tomorrow').length;
+  const reviewCounts = getReviewCounts(tasks);
+  const calendarReadySavedCount = getCalendarReadyCount(tasks);
+  const calendarNotExportedCount = tasks.filter((task) => task.calendarReady && !task.calendarExportedAt).length;
+  const todayKey = toDateKey(now);
+  const tomorrowKey = toDateKey(addDays(now, 1));
+  const todayFollowUpsCount = activeTasks.filter(
+    (task) =>
+      task.due === 'today' ||
+      task.parsedDate === todayKey ||
+      task.parsedDate === tomorrowKey ||
+      task.due === 'tomorrow'
+  ).length;
   const capturedCount = tasks.filter((task) => task.source === 'capture').length;
+  const recentCaptureCount = tasks.filter((task) => task.source === 'capture').slice(0, 5).length;
 
   function showToast(message: string) {
     setToastMessage(message);
+  }
+
+  function clearCaptureComposer() {
+    setCaptureText('');
+    setCaptureCandidates([]);
+    setCaptureOutcome(null);
   }
 
   function pushLog(type: ActivityLog['type'], when: Date, taskId?: string, meta?: string) {
@@ -237,6 +286,21 @@ export default function App() {
     }));
   }
 
+  function trackReviewCompletion(
+    previous: Pick<TaskDraft, 'needsDateReview' | 'needsTimeReview'>,
+    next: Pick<TaskDraft, 'needsDateReview' | 'needsTimeReview'>,
+    stamp: Date,
+    taskSnapshot = tasks
+  ) {
+    if (previous.needsDateReview && !next.needsDateReview) {
+      trackQAEvent('date_review_completed', {}, stamp, taskSnapshot);
+    }
+
+    if (previous.needsTimeReview && !next.needsTimeReview) {
+      trackQAEvent('time_review_completed', {}, stamp, taskSnapshot);
+    }
+  }
+
   function trackManualAfterCapture(taskSnapshot: Task[], timestamp: Date) {
     if (!qaMode || !captureFlowRef.current.hasExtraction || captureFlowRef.current.manualAfterCaptureTracked) {
       return;
@@ -246,29 +310,31 @@ export default function App() {
     trackQAEvent('used_manual_add_after_capture', {}, timestamp, taskSnapshot);
   }
 
-  async function copyQASummary() {
-    const summaryText = buildQASummaryText(qaSummary, qaData.feedback);
-
+  async function copyText(text: string) {
     try {
       if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(summaryText);
-        showToast('QA summary copied.');
-        return;
+        await navigator.clipboard.writeText(text);
+        return true;
       }
     } catch {
-      // Fall through to manual copy fallback.
+      // Fall through to legacy copy.
     }
 
     const helper = document.createElement('textarea');
-    helper.value = summaryText;
+    helper.value = text;
     helper.setAttribute('readonly', 'true');
     helper.style.position = 'absolute';
     helper.style.left = '-9999px';
     document.body.appendChild(helper);
     helper.select();
-
     const success = document.execCommand('copy');
     document.body.removeChild(helper);
+    return success;
+  }
+
+  async function copyQASummary() {
+    const summaryText = buildQASummaryText(qaSummary, qaData.feedback);
+    const success = await copyText(summaryText);
     showToast(success ? 'QA summary copied.' : 'Copy failed. Try Download QA JSON.');
   }
 
@@ -384,7 +450,7 @@ export default function App() {
   }, [activeView, qaMode]);
 
   useEffect(() => {
-    if (!qaMode || activeView !== 'today') {
+    if (!qaMode || activeView !== 'now') {
       return;
     }
 
@@ -431,30 +497,84 @@ export default function App() {
         stamp,
         nextTasks
       );
-      showToast('Manual task saved. Capture is still the fastest path.');
-    } else {
-      showToast('Saved.');
+      setManualEditorOpen(false);
     }
 
-    setActiveView('today');
+    if (task.alarmEnabled) {
+      trackQAEvent(
+        'alarm_option_selected',
+        {
+          itemType: task.itemType,
+          alarmBeforeMinutes: task.alarmBeforeMinutes,
+          alarmSelectionCount: 1
+        },
+        stamp,
+        nextTasks
+      );
+    }
+
+    if (task.needsDateReview || task.needsTimeReview) {
+      trackQAEvent(
+        'item_marked_needs_review',
+        {
+          itemsNeedingDateReviewCount: task.needsDateReview ? 1 : 0,
+          itemsNeedingTimeReviewCount: task.needsTimeReview ? 1 : 0
+        },
+        stamp,
+        nextTasks
+      );
+    }
+
+    if (task.calendarReady) {
+      trackQAEvent('calendar_export_available', { calendarReadyCount: 1 }, stamp, nextTasks);
+    }
+
+    showToast(source === 'capture' ? 'Saved.' : 'Manual item saved. Capture is still the faster path.');
+    setActiveView(source === 'manual' ? 'tasks' : 'upcoming');
   }
 
   function updateTask(taskId: string, draft: TaskDraft) {
     const stamp = new Date();
+    const previousTask = tasks.find((task) => task.id === taskId);
 
-    setTasks((current) =>
-      current.map((task) =>
-        task.id === taskId
-          ? {
-              ...task,
-              ...draft,
-              title: draft.title.trim(),
-              memo: draft.memo.trim()
-            }
-          : task
-      )
-    );
+    if (!previousTask) {
+      return;
+    }
+
+    const nextDraft = applyDraftScheduling(draft, stamp);
+    const nextTask = {
+      ...previousTask,
+      ...nextDraft,
+      title: nextDraft.title.trim(),
+      memo: nextDraft.memo.trim()
+    };
+
+    const nextTasks = tasks.map((task) => (task.id === taskId ? nextTask : task));
+
+    setTasks(nextTasks);
     pushLog('edited', stamp, taskId);
+    trackReviewCompletion(previousTask, nextTask, stamp, nextTasks);
+
+    if (
+      previousTask.alarmEnabled !== nextTask.alarmEnabled ||
+      previousTask.alarmBeforeMinutes !== nextTask.alarmBeforeMinutes
+    ) {
+      trackQAEvent(
+        'alarm_option_selected',
+        {
+          itemType: nextTask.itemType,
+          alarmBeforeMinutes: nextTask.alarmBeforeMinutes,
+          alarmSelectionCount: 1
+        },
+        stamp,
+        nextTasks
+      );
+    }
+
+    if (nextTask.calendarReady && !previousTask.calendarReady) {
+      trackQAEvent('calendar_export_available', { calendarReadyCount: 1 }, stamp, nextTasks);
+    }
+
     setEditingTask(null);
     showToast('Changes saved.');
   }
@@ -478,7 +598,7 @@ export default function App() {
 
     setTasks(updatedTasks);
     pushLog('completed', stamp, taskId);
-    trackQAEvent('now_card_done', { nowTaskId: taskId }, stamp, updatedTasks);
+    trackQAEvent('item_marked_done', {}, stamp, updatedTasks);
     showToast(getCompleteMessage(stamp, nextTask?.title));
   }
 
@@ -540,9 +660,7 @@ export default function App() {
     const restoredTasks = sampleTasks(stamp);
     setTasks(restoredTasks);
     setLogs([createLog('restoredSamples', stamp)]);
-    setCaptureText('');
-    setCaptureCandidates([]);
-    setCaptureOutcome(null);
+    clearCaptureComposer();
     captureFlowRef.current = {
       hasExtraction: false,
       manualAfterCaptureTracked: false
@@ -560,9 +678,7 @@ export default function App() {
     const stamp = new Date();
     setTasks([]);
     setLogs([]);
-    setCaptureText('');
-    setCaptureCandidates([]);
-    setCaptureOutcome(null);
+    clearCaptureComposer();
     captureFlowRef.current = {
       hasExtraction: false,
       manualAfterCaptureTracked: false
@@ -578,8 +694,11 @@ export default function App() {
       return;
     }
 
-    const candidates = extractCaptureCandidates(input);
+    const stamp = new Date();
+    const candidates = extractCaptureCandidates(input, stamp);
     const counts = getItemCounts(candidates);
+    const reviewCountsForCandidates = getReviewCounts(candidates);
+    const calendarReadyCount = getCalendarReadyCount(candidates);
 
     setCaptureCandidates(candidates);
     setCaptureOutcome(null);
@@ -590,11 +709,25 @@ export default function App() {
 
     trackQAEvent('extraction_run', {
       detectedItemsCount: candidates.length,
-      captureCandidateCount: candidates.length,
       extractedTaskCount: counts.task,
       extractedEventCount: counts.event,
       extractedReminderCount: counts.reminder
     });
+
+    if (calendarReadyCount > 0) {
+      trackQAEvent('calendar_export_available', { calendarReadyCount }, stamp);
+    }
+
+    if (reviewCountsForCandidates.needsDateReviewCount || reviewCountsForCandidates.needsTimeReviewCount) {
+      trackQAEvent(
+        'item_marked_needs_review',
+        {
+          itemsNeedingDateReviewCount: reviewCountsForCandidates.needsDateReviewCount,
+          itemsNeedingTimeReviewCount: reviewCountsForCandidates.needsTimeReviewCount
+        },
+        stamp
+      );
+    }
 
     if (candidates.length === 0) {
       showToast('No clear items yet. Try shorter lines or one note at a time.');
@@ -616,11 +749,16 @@ export default function App() {
   function saveCaptureCandidates() {
     const selected = captureCandidates
       .filter((candidate) => candidate.selected && candidate.title.trim())
-      .map((candidate) => ({
-        ...candidate,
-        title: candidate.title.trim(),
-        memo: candidate.memo.trim()
-      }));
+      .map((candidate) =>
+        applyDraftScheduling(
+          {
+            ...candidate,
+            title: candidate.title.trim(),
+            memo: candidate.memo.trim()
+          },
+          new Date()
+        )
+      );
 
     if (selected.length === 0) {
       showToast('Select at least one item to save.');
@@ -631,20 +769,22 @@ export default function App() {
     const createdTasks = selected.map((candidate) => createTaskFromDraft(candidate, stamp, 'capture'));
     const nextTasks = [...createdTasks, ...tasks];
     const counts = getItemCounts(selected);
+    const nextReviewCounts = getReviewCounts(selected);
+    const calendarReadyCount = getCalendarReadyCount(selected);
     const outcome: CaptureOutcome = {
       detectedCount: captureCandidates.length,
       savedCount: selected.length,
       savedTaskCount: counts.task,
       savedEventCount: counts.event,
       savedReminderCount: counts.reminder,
-      manualEntriesAvoidedApprox: selected.length
+      manualEntriesAvoidedApprox: selected.length,
+      calendarReadyCount,
+      needsDateReviewCount: nextReviewCounts.needsDateReviewCount,
+      needsTimeReviewCount: nextReviewCounts.needsTimeReviewCount
     };
 
     setTasks((current) => [...createdTasks, ...current]);
-    setLogs((current) => [
-      ...createdTasks.map((task) => createLog('captured', stamp, task.id)),
-      ...current
-    ].slice(0, 300));
+    setLogs((current) => [...createdTasks.map((task) => createLog('captured', stamp, task.id)), ...current].slice(0, 300));
     setCaptureText('');
     setCaptureCandidates([]);
     setCaptureOutcome(outcome);
@@ -666,16 +806,115 @@ export default function App() {
       nextTasks
     );
 
+    if (calendarReadyCount > 0) {
+      trackQAEvent('calendar_export_available', { calendarReadyCount }, stamp, nextTasks);
+    }
+
+    if (nextReviewCounts.needsDateReviewCount || nextReviewCounts.needsTimeReviewCount) {
+      trackQAEvent(
+        'item_marked_needs_review',
+        {
+          itemsNeedingDateReviewCount: nextReviewCounts.needsDateReviewCount,
+          itemsNeedingTimeReviewCount: nextReviewCounts.needsTimeReviewCount
+        },
+        stamp,
+        nextTasks
+      );
+    }
+
+    const alarmSelections = selected.filter((item) => item.alarmEnabled).length;
+    if (alarmSelections > 0) {
+      trackQAEvent('alarm_option_selected', { alarmSelectionCount: alarmSelections }, stamp, nextTasks);
+    }
+
     showToast('Saved. Now you do not have to retype it later.');
   }
 
   function updateCaptureCandidate(candidateId: string, updates: Partial<CaptureCandidate>) {
-    setCaptureCandidates((current) =>
-      current.map((candidate) => (candidate.id === candidateId ? { ...candidate, ...updates } : candidate))
+    const previousCandidate = captureCandidates.find((candidate) => candidate.id === candidateId);
+
+    if (!previousCandidate) {
+      return;
+    }
+
+    const nextCandidate = refreshCaptureCandidate(
+      {
+        ...previousCandidate,
+        ...updates
+      },
+      new Date()
     );
+
+    setCaptureCandidates((current) => current.map((candidate) => (candidate.id === candidateId ? nextCandidate : candidate)));
+    trackReviewCompletion(previousCandidate, nextCandidate, new Date());
   }
 
-  function renderTodayView() {
+  function updateCaptureCandidateAlarm(candidateId: string, alarmEnabled: boolean, alarmBeforeMinutes: number | null) {
+    const previousCandidate = captureCandidates.find((candidate) => candidate.id === candidateId);
+
+    if (!previousCandidate) {
+      return;
+    }
+
+    const nextCandidate = updateAlarmPreference(previousCandidate, alarmEnabled, alarmBeforeMinutes);
+    setCaptureCandidates((current) => current.map((candidate) => (candidate.id === candidateId ? nextCandidate : candidate)));
+    trackQAEvent('alarm_option_selected', {
+      itemType: nextCandidate.itemType,
+      alarmBeforeMinutes,
+      alarmSelectionCount: 1
+    });
+  }
+
+  async function previewCopyDetails(candidate: CaptureCandidate) {
+    const success = await copyEventDetails(candidate);
+    if (success) {
+      trackQAEvent('event_details_copied', { eventDetailsCopiedCount: 1 });
+    }
+    showToast(success ? 'Event details copied.' : 'Copy failed.');
+  }
+
+  function previewDownloadICS(candidate: CaptureCandidate) {
+    if (!canExportICS(candidate)) {
+      showToast('This item needs a clear date and time before calendar export.');
+      return;
+    }
+
+    try {
+      downloadICS(candidate);
+      trackQAEvent('calendar_file_downloaded', { calendarExportCount: 1 });
+      showToast('Calendar file downloaded.');
+    } catch {
+      showToast('Calendar export failed.');
+    }
+  }
+
+  async function handleCopyDetails(task: Task) {
+    const success = await copyEventDetails(task);
+    if (success) {
+      setTasks((current) => current.map((item) => (item.id === task.id ? incrementCopiedDetails(item) : item)));
+      trackQAEvent('event_details_copied', { eventDetailsCopiedCount: 1 });
+    }
+    showToast(success ? 'Event details copied.' : 'Copy failed.');
+  }
+
+  function handleDownloadICS(task: Task) {
+    if (!canExportICS(task)) {
+      showToast('This item needs a clear date and time before calendar export.');
+      return;
+    }
+
+    try {
+      downloadICS(task);
+      const stamp = new Date();
+      setTasks((current) => current.map((item) => (item.id === task.id ? incrementCalendarExport(item, stamp) : item)));
+      trackQAEvent('calendar_file_downloaded', { calendarExportCount: 1 }, stamp);
+      showToast('Calendar file downloaded.');
+    } catch {
+      showToast('Calendar export failed.');
+    }
+  }
+
+  function renderNowView() {
     return (
       <section className="view">
         <header className="screen-header">
@@ -696,7 +935,7 @@ export default function App() {
           onSnooze={snoozeTask}
           onSkipToday={skipToday}
           onOpenCapture={() => setActiveView('capture')}
-          onManualAdd={() => setActiveView('add')}
+          onManualAdd={() => setManualEditorOpen(true)}
         />
 
         <section className="summary-grid summary-grid--three">
@@ -706,14 +945,14 @@ export default function App() {
             <p>Saved from pasted notes, messages, or plans.</p>
           </article>
           <article className="summary-card summary-card--quiet">
-            <div className="eyebrow">Due soon</div>
-            <strong>{dueSoonCount}</strong>
-            <p>Items that look time-sensitive.</p>
+            <div className="eyebrow">Upcoming soon</div>
+            <strong>{todayFollowUpsCount}</strong>
+            <p>Things that look time-sensitive.</p>
           </article>
           <article className="summary-card summary-card--quiet">
-            <div className="eyebrow">Often delayed</div>
-            <strong>{delaySummary.title}</strong>
-            <p>{delaySummary.detail}</p>
+            <div className="eyebrow">Needs review</div>
+            <strong>{reviewCounts.needsDateReviewCount + reviewCounts.needsTimeReviewCount}</strong>
+            <p>Items that still need a date or time check.</p>
           </article>
         </section>
 
@@ -721,10 +960,10 @@ export default function App() {
           <div className="section-heading">
             <div>
               <h2>Keep moving</h2>
-              <p>This list exists to support the follow-through layer, not replace Capture.</p>
+              <p>The next few items that still deserve attention.</p>
             </div>
-            <button type="button" className="ghost-button" onClick={() => setActiveView('add')}>
-              Add manually
+            <button type="button" className="ghost-button" onClick={() => setActiveView('upcoming')}>
+              View upcoming
             </button>
           </div>
           <div className="stack">
@@ -736,12 +975,14 @@ export default function App() {
                   onComplete={completeTask}
                   onEdit={setEditingTask}
                   onDelete={deleteTask}
+                  onDownloadICS={handleDownloadICS}
+                  onCopyDetails={handleCopyDetails}
                 />
               ))
             ) : (
               <div className="empty-state">
                 <h3>Nothing else needs to compete right now.</h3>
-                <p>Capture another message or add a fallback task if you need one.</p>
+                <p>Capture another message or confirm one upcoming detail.</p>
               </div>
             )}
           </div>
@@ -750,39 +991,84 @@ export default function App() {
     );
   }
 
-  function renderAddView() {
+  function renderUpcomingView() {
     return (
       <section className="view">
         <header className="screen-header">
           <div>
-            <div className="eyebrow">Manual fallback</div>
-            <h1>Add manually</h1>
-            <p>Use this when there is nothing useful to capture.</p>
+            <div className="eyebrow">Upcoming</div>
+            <h1>What might you miss?</h1>
+            <p>See what needs attention today, tomorrow, this week, or a date/time review.</p>
           </div>
+          <button type="button" className="ghost-button" onClick={() => setActiveView('capture')}>
+            Capture more
+          </button>
         </header>
 
-        <TaskEditor
-          title="Add manually"
-          description="Keep it short. The point is to avoid typing whenever you can."
-          submitLabel="Save manual task"
-          onSubmit={(draft) => addTask(draft)}
+        <section className="summary-grid summary-grid--three">
+          <article className="summary-card summary-card--quiet">
+            <div className="eyebrow">Today's follow-ups</div>
+            <strong>{todayFollowUpsCount}</strong>
+            <p>Events, reminders, and deadlines worth checking first.</p>
+          </article>
+          <article className="summary-card summary-card--quiet">
+            <div className="eyebrow">Needs review</div>
+            <strong>{reviewCounts.needsDateReviewCount + reviewCounts.needsTimeReviewCount}</strong>
+            <p>Review before you forget.</p>
+          </article>
+          <article className="summary-card summary-card--quiet">
+            <div className="eyebrow">Calendar-ready</div>
+            <strong>{calendarNotExportedCount}</strong>
+            <p>Ready to export, but not downloaded yet.</p>
+          </article>
+        </section>
+
+        <section className="panel panel--quiet">
+          <div className="section-heading">
+            <div>
+              <h2>Daily use</h2>
+              <p>Today’s follow-ups, review items, and recent captures in one place.</p>
+            </div>
+          </div>
+          <div className="meta-row meta-row--summary">
+            <span>Today: {todayFollowUpsCount}</span>
+            <span>Needs review: {reviewCounts.needsDateReviewCount + reviewCounts.needsTimeReviewCount}</span>
+            <span>Calendar-ready: {calendarReadySavedCount}</span>
+            <span>Recent captures: {recentCaptureCount}</span>
+          </div>
+        </section>
+
+        <UpcomingPanel
+          tasks={tasks}
+          now={now}
+          onEdit={setEditingTask}
+          onComplete={completeTask}
+          onDelete={deleteTask}
+          onDownloadICS={handleDownloadICS}
+          onCopyDetails={handleCopyDetails}
+          onViewed={() => trackQAEvent('upcoming_viewed')}
         />
       </section>
     );
   }
 
-  function renderListView() {
+  function renderTasksView() {
     return (
       <section className="view">
         <header className="screen-header">
           <div>
             <div className="eyebrow">Tasks</div>
             <h1>Saved items</h1>
-            <p>Tasks, events, and reminders saved locally after capture or manual fallback.</p>
+            <p>Everything saved locally. Add manually only when there is nothing useful to capture.</p>
           </div>
-          <button type="button" className="ghost-button" onClick={() => setActiveView('capture')}>
-            Capture more
-          </button>
+          <div className="action-row">
+            <button type="button" className="secondary-button" onClick={() => setManualEditorOpen(true)}>
+              Add manually
+            </button>
+            <button type="button" className="ghost-button" onClick={() => setActiveView('capture')}>
+              Capture more
+            </button>
+          </div>
         </header>
 
         <section className="summary-grid summary-grid--three">
@@ -826,6 +1112,8 @@ export default function App() {
                 onComplete={task.status === 'active' ? completeTask : undefined}
                 onEdit={task.status === 'active' ? setEditingTask : undefined}
                 onDelete={deleteTask}
+                onDownloadICS={handleDownloadICS}
+                onCopyDetails={handleCopyDetails}
               />
             ))
           ) : (
@@ -861,6 +1149,9 @@ export default function App() {
               candidate={candidate}
               onToggleSelected={(candidateId, selected) => updateCaptureCandidate(candidateId, { selected })}
               onChange={updateCaptureCandidate}
+              onAlarmChange={updateCaptureCandidateAlarm}
+              onPreviewDownload={previewDownloadICS}
+              onPreviewCopy={previewCopyDetails}
             />
           ))}
         </div>
@@ -874,27 +1165,22 @@ export default function App() {
         <header className="hero-card hero-card--capture">
           <div className="eyebrow">What's Next</div>
           <h1>Stop retyping tasks and plans.</h1>
-          <p>
-            Paste a message or meeting note for now. What's Next turns it into tasks and calendar-ready
-            events.
-          </p>
+          <p>Paste a message, meeting note, or plan. What&apos;s Next turns it into tasks, reminders, and calendar-ready events.</p>
           <div className="hero-card__footer">
-            <span>Capture now. Decide later.</span>
-            <span>We only use what you paste here.</span>
-            <span>No automatic message reading in this PWA.</span>
+            <span>Capture the plan. Keep the reminder.</span>
+            <span>Messages in. Tasks, events, and reminders out.</span>
+            <span>Add alarms before you forget.</span>
           </div>
         </header>
 
         <section className="panel panel--quiet roadmap-note">
           <div className="section-heading">
             <div>
-              <h2>Capture test</h2>
-              <p>Testing capture quality here. Native shortcuts and share-sheet capture come next.</p>
+              <h2>PWA reality</h2>
+              <p>For now, paste text to test capture. Native share-sheet and calendar save can come later.</p>
             </div>
           </div>
-          <p className="subcopy">
-            Share from Messages, Mail, Notes, or Calendar later. Save to Calendar and Reminders later.
-          </p>
+          <p className="subcopy">We only use what you paste here. No account. No server. No automatic message reading.</p>
         </section>
 
         <section className="panel panel--capture">
@@ -904,7 +1190,7 @@ export default function App() {
               rows={9}
               value={captureText}
               onChange={(event) => setCaptureText(event.target.value)}
-              placeholder="Example: Sarah can do a project check-in tomorrow at 3 PM on Zoom. Please send the revised intro before lunch and remember to book the dentist appointment this week."
+              placeholder="Example: Dinner with Mina on Saturday at 7 PM near Gangnam Station. Don't forget to book a table before Friday. Please send the revised report by Friday and call Alex at 3 PM tomorrow."
             />
           </label>
           <div className="action-row">
@@ -914,11 +1200,13 @@ export default function App() {
             <button type="button" className="ghost-button" onClick={trySampleCapture}>
               Try sample
             </button>
-            <button type="button" className="secondary-button" onClick={() => setActiveView('add')}>
-              Add manually
+            <button type="button" className="ghost-button" onClick={clearCaptureComposer}>
+              Clear
             </button>
           </div>
-          <p className="subcopy">The PWA only works with text you paste here. Nothing is read automatically.</p>
+          <p className="subcopy">
+            Calendar export uses downloads or copied details for now. Native Calendar, Reminders, widgets, and notifications come later.
+          </p>
         </section>
 
         {captureOutcome ? (
@@ -926,30 +1214,39 @@ export default function App() {
             <div className="section-heading">
               <div>
                 <h2>Typing saved</h2>
-                <p>Saved. Now you do not have to retype it later.</p>
+                <p>Saved {captureOutcome.savedCount} items. {getCaptureOutcomeText(captureOutcome.manualEntriesAvoidedApprox)}</p>
               </div>
-              <button type="button" className="secondary-button" onClick={() => setActiveView('today')}>
-                View what's next
-              </button>
+              <div className="action-row">
+                <button type="button" className="secondary-button" onClick={() => setActiveView('upcoming')}>
+                  View upcoming
+                </button>
+                <button type="button" className="ghost-button" onClick={() => setActiveView('now')}>
+                  View what&apos;s next
+                </button>
+                <button type="button" className="ghost-button" onClick={clearCaptureComposer}>
+                  Capture another note
+                </button>
+              </div>
             </div>
             <div className="summary-grid summary-grid--three">
               <article className="summary-card summary-card--quiet">
-                <div className="eyebrow">Detected</div>
-                <strong>{captureOutcome.detectedCount}</strong>
-                <p>Items found in the pasted text.</p>
+                <div className="eyebrow">Calendar-ready</div>
+                <strong>{captureOutcome.calendarReadyCount}</strong>
+                <p>Ready for calendar file export.</p>
               </article>
               <article className="summary-card summary-card--quiet">
-                <div className="eyebrow">Saved</div>
-                <strong>{captureOutcome.savedCount}</strong>
+                <div className="eyebrow">Needs review</div>
+                <strong>{captureOutcome.needsDateReviewCount + captureOutcome.needsTimeReviewCount}</strong>
                 <p>
-                  {captureOutcome.savedTaskCount} tasks, {captureOutcome.savedEventCount} events,{' '}
-                  {captureOutcome.savedReminderCount} reminders
+                  {captureOutcome.needsDateReviewCount} need date review, {captureOutcome.needsTimeReviewCount} need time review
                 </p>
               </article>
               <article className="summary-card summary-card--quiet">
-                <div className="eyebrow">Typing saved</div>
-                <strong>{captureOutcome.manualEntriesAvoidedApprox}</strong>
-                <p>{getCaptureOutcomeText(captureOutcome.manualEntriesAvoidedApprox)}</p>
+                <div className="eyebrow">Saved types</div>
+                <strong>{captureOutcome.savedCount}</strong>
+                <p>
+                  {captureOutcome.savedTaskCount} tasks, {captureOutcome.savedEventCount} events, {captureOutcome.savedReminderCount} reminders
+                </p>
               </article>
             </div>
           </section>
@@ -961,8 +1258,8 @@ export default function App() {
               <h2>Detected items</h2>
               <p>
                 {captureCandidates.length > 0
-                  ? 'Select what to keep. Edit anything before you save it.'
-                  : 'Paste something messy and we will sort it into tasks, events, and reminders.'}
+                  ? 'Select what to keep, tune the timing, and choose alarms before you save.'
+                  : 'Paste something messy and we will sort it into tasks, events, reminders, and review items.'}
               </p>
             </div>
             {captureCandidates.length > 0 ? (
@@ -978,6 +1275,8 @@ export default function App() {
                 <span>{captureCandidateCounts.task} tasks</span>
                 <span>{captureCandidateCounts.event} events</span>
                 <span>{captureCandidateCounts.reminder} reminders</span>
+                <span>{getCalendarReadyCount(captureCandidates)} calendar-ready</span>
+                <span>{captureReviewCounts.needsDateReviewCount + captureReviewCounts.needsTimeReviewCount} need review</span>
               </div>
               <div className="stack">
                 {renderCaptureGroup('task')}
@@ -988,7 +1287,7 @@ export default function App() {
           ) : (
             <div className="empty-state">
               <h3>No extraction yet.</h3>
-              <p>Throw messy text here first. The point is to avoid organizing it by hand.</p>
+              <p>Throw messy text here first. The goal is to avoid retyping, then keep the important details visible.</p>
             </div>
           )}
         </section>
@@ -1003,23 +1302,23 @@ export default function App() {
           <div>
             <div className="eyebrow">Settings</div>
             <h1>Settings</h1>
-            <p>Just enough to test the capture-first product honestly.</p>
+            <p>Enough to test the capture-to-reminder flow honestly.</p>
           </div>
         </header>
 
         <section className="panel panel--quiet">
           <h2>Privacy</h2>
-          <p>We only use what you paste here. No automatic message reading in this PWA.</p>
+          <p>We only use what you paste here. No automatic message reading. No account. No server.</p>
+        </section>
+
+        <section className="panel panel--quiet">
+          <h2>PWA limits</h2>
+          <p>No direct iOS Calendar write, no direct Reminders write, and no guaranteed system notifications yet.</p>
         </section>
 
         <section className="panel panel--quiet">
           <h2>Native direction</h2>
-          <p>Share sheet capture, Calendar save, Reminders save, widgets, and App Intents belong in native iOS.</p>
-        </section>
-
-        <section className="panel panel--quiet">
-          <h2>Home Screen test</h2>
-          <p>Add What's Next to your iPhone Home Screen and use it for three days before paying for native work.</p>
+          <p>Share sheet capture, EventKit save, native alarms, widgets, and local notifications belong in native iOS later.</p>
         </section>
 
         {qaMode ? (
@@ -1037,6 +1336,9 @@ export default function App() {
         <section className="panel panel--quiet">
           <h2>Data</h2>
           <div className="stack">
+            <button type="button" className="secondary-button" onClick={() => setManualEditorOpen(true)}>
+              Add manually
+            </button>
             <button type="button" className="secondary-button" onClick={restoreSamples}>
               Restore sample items
             </button>
@@ -1048,7 +1350,7 @@ export default function App() {
 
         <section className="panel panel--quiet">
           <h2>Version</h2>
-          <p>PWA capture test v0.1</p>
+          <p>PWA reminder-ready test v0.1</p>
         </section>
       </section>
     );
@@ -1056,12 +1358,12 @@ export default function App() {
 
   function renderView() {
     switch (activeView) {
-      case 'today':
-        return renderTodayView();
-      case 'add':
-        return renderAddView();
-      case 'list':
-        return renderListView();
+      case 'upcoming':
+        return renderUpcomingView();
+      case 'now':
+        return renderNowView();
+      case 'tasks':
+        return renderTasksView();
       case 'capture':
         return renderCaptureView();
       case 'settings':
@@ -1078,13 +1380,27 @@ export default function App() {
         </div>
       </div>
 
+      {manualEditorOpen ? (
+        <div className="modal-backdrop" role="presentation" onClick={() => setManualEditorOpen(false)}>
+          <div className="modal-sheet" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+            <TaskEditor
+              title="Add manually"
+              description="Use this when there is nothing useful to capture."
+              submitLabel="Save manual item"
+              onSubmit={(draft) => addTask(draft)}
+              onCancel={() => setManualEditorOpen(false)}
+            />
+          </div>
+        </div>
+      ) : null}
+
       {editingTask ? (
         <div className="modal-backdrop" role="presentation" onClick={() => setEditingTask(null)}>
           <div className="modal-sheet" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
             <TaskEditor
               initialValue={editingTask}
               title="Edit item"
-              description="Keep the smallest useful edit. The point is still to move fast."
+              description="Use this to confirm times, choose alarms, or make the export details clearer."
               submitLabel="Save changes"
               onSubmit={(draft) => updateTask(editingTask.id, draft)}
               onCancel={() => setEditingTask(null)}

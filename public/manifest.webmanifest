@@ -6,7 +6,7 @@
   "display": "standalone",
   "background_color": "#f7f1e6",
   "theme_color": "#f7f1e6",
-  "description": "Paste a message or note to turn it into tasks, reminders, and calendar-ready events without retyping.",
+  "description": "Paste a message or note to turn it into tasks, reminders, calendar-ready events, and follow-ups without retyping.",
   "icons": [
     {
       "src": "./icon-192.png",

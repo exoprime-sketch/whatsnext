@@ -1,9 +1,10 @@
 import type { AppView } from '../types';
 
-const ITEMS: Array<{ key: Extract<AppView, 'capture' | 'today' | 'list' | 'settings'>; label: string }> = [
+const ITEMS: Array<{ key: AppView; label: string }> = [
   { key: 'capture', label: 'Capture' },
-  { key: 'today', label: 'Now' },
-  { key: 'list', label: 'Tasks' },
+  { key: 'upcoming', label: 'Upcoming' },
+  { key: 'now', label: 'Now' },
+  { key: 'tasks', label: 'Tasks' },
   { key: 'settings', label: 'Settings' }
 ];
 
@@ -13,15 +14,13 @@ interface BottomNavProps {
 }
 
 export function BottomNav({ activeView, onChange }: BottomNavProps) {
-  const navActiveView = activeView === 'add' ? 'capture' : activeView;
-
   return (
     <nav className="bottom-nav" aria-label="Main tabs">
       {ITEMS.map((item) => (
         <button
           key={item.key}
           type="button"
-          className={`bottom-nav__item ${navActiveView === item.key ? 'is-active' : ''}`}
+          className={`bottom-nav__item ${activeView === item.key ? 'is-active' : ''}`}
           onClick={() => onChange(item.key)}
         >
           <span>{item.label}</span>

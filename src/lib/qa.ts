@@ -135,23 +135,17 @@ export function buildQASummary(events: QAEvent[], tasks: Task[]): QASummary {
   const firstOpenDateKey = openDateKeys[0] ?? null;
 
   const extractionRuns = countEvents(events, ['extraction_run']);
-  const detectedItemsCount =
-    sumMetadata(events, ['extraction_run'], 'detectedItemsCount') +
-    sumMetadata(events, ['capture_pasted'], 'captureCandidateCount');
-  const savedDetectedItemsCount =
-    sumMetadata(events, ['capture_items_saved'], 'savedDetectedItemsCount') +
-    sumMetadata(events, ['capture_candidate_saved'], 'captureCandidateCount');
-  const manualTaskCreatedCount =
-    countEvents(events, ['manual_task_created']) +
-    events.filter((event) => event.eventName === 'task_created' && event.metadata?.source === 'manual').length;
-  const captureSavedTaskCount =
-    sumMetadata(events, ['capture_items_saved'], 'savedTaskCount') +
-    sumMetadata(events, ['capture_candidate_saved'], 'captureCandidateCount');
+  const detectedItemsCount = sumMetadata(events, ['extraction_run'], 'detectedItemsCount');
+  const savedDetectedItemsCount = sumMetadata(events, ['capture_items_saved'], 'savedDetectedItemsCount');
+  const manualTaskCreatedCount = countEvents(events, ['manual_task_created']);
+  const captureSavedTaskCount = sumMetadata(events, ['capture_items_saved'], 'savedTaskCount');
   const captureSavedEventCount = sumMetadata(events, ['capture_items_saved'], 'savedEventCount');
   const captureSavedReminderCount = sumMetadata(events, ['capture_items_saved'], 'savedReminderCount');
   const manualEntriesAvoidedApprox = sumMetadata(events, ['capture_items_saved'], 'manualEntriesAvoidedApprox');
   const eventDetections = sumMetadata(events, ['extraction_run'], 'extractedEventCount');
   const reminderDetections = sumMetadata(events, ['extraction_run'], 'extractedReminderCount');
+  const calendarReadyItems =
+    tasks.filter((task) => task.calendarReady).length + sumMetadata(events, ['calendar_export_available'], 'calendarReadyCount');
 
   return {
     firstOpenAt,
@@ -159,7 +153,7 @@ export function buildQASummary(events: QAEvent[], tasks: Task[]): QASummary {
     activeDays: openDateKeys.length,
     totalAppOpens: openEvents.length,
     standaloneOpens: countEvents(events, ['standalone_open']),
-    totalDoneClicks: countEvents(events, ['now_card_done']),
+    totalDoneClicks: countEvents(events, ['item_marked_done']),
     totalLaterClicks: countEvents(events, ['now_card_later']),
     totalNotTodayClicks: countEvents(events, ['now_card_not_today']),
     captureOpenedCount: countEvents(events, ['capture_opened']),
@@ -175,6 +169,13 @@ export function buildQASummary(events: QAEvent[], tasks: Task[]): QASummary {
     usedManualAddAfterCaptureCount: countEvents(events, ['used_manual_add_after_capture']),
     eventDetections,
     reminderDetections,
+    calendarReadyItems,
+    calendarExports: countEvents(events, ['calendar_file_downloaded']),
+    copiedEventDetails: countEvents(events, ['event_details_copied']),
+    itemsNeedingDateReview: sumMetadata(events, ['item_marked_needs_review'], 'itemsNeedingDateReviewCount'),
+    itemsNeedingTimeReview: sumMetadata(events, ['item_marked_needs_review'], 'itemsNeedingTimeReviewCount'),
+    alarmSelections: countEvents(events, ['alarm_option_selected']),
+    upcomingViewedCount: countEvents(events, ['upcoming_viewed']),
     returnedOnDay2: firstOpenDateKey ? openDateKeys.includes(addDays(firstOpenDateKey, 1)) : false,
     returnedOnDay3: firstOpenDateKey ? openDateKeys.includes(addDays(firstOpenDateKey, 2)) : false,
     currentActiveTaskCount: tasks.filter((task) => task.status === 'active').length,
@@ -205,6 +206,13 @@ export function buildQASummaryText(summary: QASummary, feedback: QAFeedback[]) {
     `Saved tasks: ${summary.captureSavedTaskCount}`,
     `Saved events: ${summary.captureSavedEventCount}`,
     `Saved reminders: ${summary.captureSavedReminderCount}`,
+    `Calendar-ready items: ${summary.calendarReadyItems}`,
+    `Calendar exports: ${summary.calendarExports}`,
+    `Copied event details: ${summary.copiedEventDetails}`,
+    `Items needing date review: ${summary.itemsNeedingDateReview}`,
+    `Items needing time review: ${summary.itemsNeedingTimeReview}`,
+    `Alarm selections: ${summary.alarmSelections}`,
+    `Upcoming viewed: ${summary.upcomingViewedCount}`,
     `Event detections: ${summary.eventDetections}`,
     `Reminder detections: ${summary.reminderDetections}`,
     `Used manual add after capture: ${summary.usedManualAddAfterCaptureCount}`,

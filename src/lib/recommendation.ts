@@ -1,5 +1,5 @@
 import type { RecommendationResult, Task, TimeBand } from '../types';
-import { getTimeBand, toDateKey } from './time';
+import { dateFromDateKey, getTimeBand, toDateKey } from './time';
 
 const IMPORTANCE_SCORE = {
   high: 30,
@@ -33,7 +33,7 @@ function isDurationFit(durationMinutes: Task['durationMinutes'], timeBand: TimeB
 function getTimeFitReason(timeBand: TimeBand) {
   switch (timeBand) {
     case 'morning':
-      return 'This is a good first task for the morning.';
+      return 'This is small enough to review in the morning.';
     case 'afternoon':
       return 'This fits the middle of the day well.';
     case 'evening':
@@ -48,7 +48,7 @@ function getDurationReason(durationMinutes: Task['durationMinutes']) {
     return 'This is small enough to start now.';
   }
 
-  return 'Small enough to start without blocking your whole hour.';
+  return 'Small enough to move forward without losing the whole hour.';
 }
 
 function wasRecentlyRejected(task: Task, now: Date) {
@@ -72,6 +72,18 @@ function getSourceReason(task: Task) {
   return 'This came from your captured note.';
 }
 
+function getUpcomingHours(task: Task, now: Date) {
+  if (task.parsedDateTime) {
+    return (new Date(task.parsedDateTime).getTime() - now.getTime()) / (60 * 60 * 1000);
+  }
+
+  if (task.parsedDate) {
+    return (dateFromDateKey(task.parsedDate).getTime() - new Date(toDateKey(now)).getTime()) / (60 * 60 * 1000);
+  }
+
+  return Number.POSITIVE_INFINITY;
+}
+
 export function scoreTask(task: Task, now: Date) {
   if (task.status === 'completed') {
     return { score: Number.NEGATIVE_INFINITY, reasons: [] as string[] };
@@ -87,6 +99,7 @@ export function scoreTask(task: Task, now: Date) {
   }
 
   const currentBand = getTimeBand(now);
+  const upcomingHours = getUpcomingHours(task, now);
   let score = 0;
   const reasons: string[] = [];
   const sourceReason = getSourceReason(task);
@@ -98,26 +111,33 @@ export function scoreTask(task: Task, now: Date) {
   score += IMPORTANCE_SCORE[task.importance];
   score += DUE_SCORE[task.due];
 
-  if (task.itemType === 'event') {
-    score -= 8;
+  if (task.needsDateReview || task.needsTimeReview) {
+    score += 32;
+    reasons.push('This needs a date or time review before you forget.');
+  }
 
-    if (task.due === 'today' || task.timeLabel) {
+  if (task.itemType === 'event') {
+    score += task.parsedDateTime ? 16 : 6;
+
+    if (upcomingHours <= 24) {
       score += 18;
+      reasons.push('This has an upcoming event.');
+    } else if (task.due === 'today' || task.due === 'tomorrow') {
       reasons.push('This looks time-sensitive.');
     }
   }
 
   if (task.itemType === 'reminder') {
-    score += 8;
-    reasons.push('This is a small follow-up you can clear quickly.');
+    score += 12;
+    reasons.push('This is a reminder you probably do not want to miss.');
   }
 
   if (task.due === 'today') {
-    reasons.push('This is due today.');
+    reasons.push('This has a deadline today.');
   } else if (task.due === 'tomorrow') {
-    reasons.push('Getting ahead of tomorrow will make later easier.');
+    reasons.push('This has a deadline tomorrow.');
   } else if (task.due === 'thisWeek') {
-    reasons.push('This is worth touching before the week gets crowded.');
+    reasons.push('This should be touched before the week gets crowded.');
   }
 
   if (task.importance === 'high') {

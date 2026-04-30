@@ -1,22 +1,19 @@
-import type { CaptureCandidate, DueBucket, ItemType, PreferredTime, TaskDraft } from '../types';
-import { DEFAULT_TASK_DRAFT } from './tasks';
+import type { CaptureCandidate, ConfidenceLevel, ItemType, TaskDraft } from '../types';
+import { extractTemporalInfo } from './time';
+import { applyDraftScheduling, DEFAULT_TASK_DRAFT } from './tasks';
 
 const DURATION_OPTIONS = [5, 10, 15, 30, 60] as const;
-const DAY_PATTERN =
-  /\b(today|tonight|tomorrow|this morning|this afternoon|this evening|this week|next week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i;
-const TIME_PATTERN =
-  /\b(\d{1,2}(?::\d{2})?\s?(?:am|pm)|noon|midnight|before lunch|after lunch|end of day|eod)\b/i;
 const EVENT_PATTERN =
-  /\b(meeting|meet|call|appointment|lunch|dinner|breakfast|check-in|check in|sync|visit|demo|calendar|interview|session|doctor|dentist|flight)\b/i;
+  /\b(meeting|meet|call|appointment|lunch|dinner|breakfast|coffee|check-in|check in|sync|visit|demo|calendar|interview|session|doctor|dentist|flight|review)\b/i;
 const REMINDER_PATTERN =
-  /\b(remember|remind|don't forget|dont forget|follow up|follow-up|check back|ping|nudge|circle back)\b/i;
+  /\b(remember|remind|don't forget|dont forget|follow up|follow-up|check back|ping|nudge|circle back|bring|buy|pick up|book|pack)\b/i;
 const ACTION_PATTERN =
   /\b(reply|send|review|finish|draft|prepare|plan|check|confirm|call|book|schedule|update|share|pay|submit|organize|clean|email|message|meet|join|follow up)\b/i;
 
-export const SAMPLE_CAPTURE_TEXT = `Please send the revised intro by tomorrow morning.
-Project check-in with Sarah tomorrow at 3 PM on Zoom.
-Don't forget to book the dentist appointment this week.
-Review the budget notes before lunch.`;
+export const SAMPLE_CAPTURE_TEXT = `Please send the revised report by Friday.
+Check the budget numbers tomorrow morning and prepare slides for next week's review.
+Dinner with Mina on Saturday at 7 PM near Gangnam Station.
+Don't forget to book a table before Friday.`;
 
 function clampDuration(value: number) {
   return DURATION_OPTIONS.reduce((closest, current) => {
@@ -32,44 +29,12 @@ function normalizeWhitespace(value: string) {
   return value.replace(/\s+/g, ' ').trim();
 }
 
-function guessDue(text: string): DueBucket {
-  if (/\btoday\b|\btonight\b|this morning|this afternoon|this evening|by end of day|eod/i.test(text)) {
-    return 'today';
-  }
-
-  if (/\btomorrow\b|\btmr\b|by tomorrow/i.test(text)) {
-    return 'tomorrow';
-  }
-
-  if (/\bthis week\b|\bnext week\b|by friday|before the weekend|\bmonday\b|\btuesday\b|\bwednesday\b|\bthursday\b|\bfriday\b/i.test(text)) {
-    return 'thisWeek';
-  }
-
-  return 'none';
-}
-
-function guessPreferredTime(text: string): PreferredTime {
-  if (/\bmorning\b|before lunch/i.test(text)) {
-    return 'morning';
-  }
-
-  if (/\bafternoon\b|after lunch|noon/i.test(text)) {
-    return 'afternoon';
-  }
-
-  if (/\bevening\b|\btonight\b/i.test(text)) {
-    return 'evening';
-  }
-
-  return 'anytime';
-}
-
 function guessImportance(text: string): TaskDraft['importance'] {
   if (/\burgent\b|\bimportant\b|\bpriority\b|\bmust\b|\basap\b/i.test(text)) {
     return 'high';
   }
 
-  if (/\bshould\b|\bneed to\b|follow up|review/i.test(text)) {
+  if (/\bshould\b|\bneed to\b|follow up|review|deadline/i.test(text)) {
     return 'medium';
   }
 
@@ -88,127 +53,64 @@ function guessDuration(text: string, itemType: ItemType): TaskDraft['durationMin
       return 60;
     }
 
+    if (/dinner|lunch|coffee|breakfast/i.test(text)) {
+      return 60;
+    }
+
     return 30;
   }
 
   if (itemType === 'reminder') {
-    return 5;
+    return 10;
   }
 
-  if (/report|calendar|outline|draft|review|presentation|planning|budget/i.test(text)) {
+  if (/report|calendar|outline|draft|review|presentation|planning|budget|slides/i.test(text)) {
     return 30;
   }
 
-  if (/reply|check|confirm|clean|organize|plan|follow up|call|book/i.test(text)) {
+  if (/reply|check|confirm|clean|organize|plan|follow up|call|book|submit|send/i.test(text)) {
     return 10;
   }
 
   return DEFAULT_TASK_DRAFT.durationMinutes;
 }
 
-function extractDateLabel(text: string) {
-  if (/this morning/i.test(text)) {
-    return 'This morning';
-  }
-
-  if (/this afternoon/i.test(text)) {
-    return 'This afternoon';
-  }
-
-  if (/this evening/i.test(text)) {
-    return 'This evening';
-  }
-
-  if (/\btoday\b/i.test(text)) {
-    return 'Today';
-  }
-
-  if (/\btonight\b/i.test(text)) {
-    return 'Tonight';
-  }
-
-  if (/\btomorrow\b|\btmr\b/i.test(text)) {
-    return 'Tomorrow';
-  }
-
-  if (/\bthis week\b/i.test(text)) {
-    return 'This week';
-  }
-
-  if (/\bnext week\b/i.test(text)) {
-    return 'Next week';
-  }
-
-  const dayMatch = text.match(DAY_PATTERN);
-  return dayMatch ? capitalizeWords(dayMatch[1].toLowerCase()) : undefined;
-}
-
-function formatTimeLabel(token: string) {
-  const compact = normalizeWhitespace(token).toUpperCase();
-
-  if (compact === 'EOD') {
-    return 'End of day';
-  }
-
-  if (compact === 'NOON' || compact === 'MIDNIGHT') {
-    return capitalizeWords(compact.toLowerCase());
-  }
-
-  if (compact === 'BEFORE LUNCH' || compact === 'AFTER LUNCH') {
-    return capitalizeWords(compact.toLowerCase());
-  }
-
-  return compact.replace(/AM|PM/, (suffix) => suffix);
-}
-
-function extractTimeLabel(text: string) {
-  const match = text.match(TIME_PATTERN);
-  return match ? formatTimeLabel(match[1]) : undefined;
-}
-
-function trimCapturedLabel(value: string) {
-  return normalizeWhitespace(
-    value
-      .replace(/["'.,]/g, ' ')
-      .replace(/\b(?:today|tonight|tomorrow|this|next|before|after|at|in|on|via)\b$/i, ' ')
-  );
-}
-
-function extractPersonLabel(text: string) {
-  const match = text.match(/\bwith\s+([^,.;\n]+?)(?=\s+(?:today|tonight|tomorrow|this|next|at|in|on|via|before|after)\b|$)/i);
-  if (!match) {
-    return undefined;
-  }
-
-  const label = trimCapturedLabel(match[1]);
-  return label ? capitalizeWords(label) : undefined;
-}
-
-function extractLocationLabel(text: string) {
+function extractLocationText(text: string) {
   const videoMatch = text.match(/\b(?:on|via)\s+(zoom|google meet|meet|teams|phone)\b/i);
   if (videoMatch) {
     return capitalizeWords(videoMatch[1].toLowerCase());
   }
 
-  const placeMatch = text.match(/\b(?:in|at)\s+([^,.;\n]+?)(?=\s+(?:today|tonight|tomorrow|this|next|before|after|with)\b|$)/i);
+  const placeMatch = text.match(
+    /\b(?:near|in|at)\s+([^,.;\n]+?)(?=\s+(?:today|tomorrow|tonight|this|next|before|with|on|via|at)\b|$)/i
+  );
   if (!placeMatch) {
     return undefined;
   }
 
-  const label = trimCapturedLabel(placeMatch[1]);
-  if (!label || TIME_PATTERN.test(label)) {
+  const label = normalizeWhitespace(placeMatch[1].replace(/["'.,]/g, ' '));
+  if (!label || /\d{1,2}(?::\d{2})?\s*(?:am|pm)/i.test(label)) {
     return undefined;
   }
 
   return capitalizeWords(label.toLowerCase());
 }
 
-function inferItemType(text: string, dateLabel?: string, timeLabel?: string, locationLabel?: string): ItemType {
+function extractPersonText(text: string) {
+  const match = text.match(
+    /\bwith\s+([^,.;\n]+?)(?=\s+(?:today|tomorrow|tonight|this|next|before|after|at|in|near|on|via)\b|$)/i
+  );
+  if (!match) {
+    return undefined;
+  }
+
+  const label = normalizeWhitespace(match[1].replace(/["'.,]/g, ' '));
+  return label ? capitalizeWords(label) : undefined;
+}
+
+function inferItemType(text: string, hasDateOrTime: boolean, hasLocation: boolean): ItemType {
   const reminderScore = REMINDER_PATTERN.test(text) ? 2 : 0;
-  const eventScore =
-    (EVENT_PATTERN.test(text) ? 2 : 0) +
-    (dateLabel || timeLabel ? 1 : 0) +
-    (locationLabel ? 1 : 0);
+  const eventScore = (EVENT_PATTERN.test(text) ? 2 : 0) + (hasDateOrTime ? 1 : 0) + (hasLocation ? 1 : 0);
 
   if (eventScore >= 2) {
     return 'event';
@@ -218,7 +120,7 @@ function inferItemType(text: string, dateLabel?: string, timeLabel?: string, loc
     return 'reminder';
   }
 
-  if ((dateLabel || timeLabel) && /\b(with|join|meet|call|zoom|teams|appointment)\b/i.test(text)) {
+  if (hasDateOrTime && /\b(with|join|meet|call|zoom|teams|appointment|dinner|lunch|coffee)\b/i.test(text)) {
     return 'event';
   }
 
@@ -235,11 +137,16 @@ function normalizeActionText(fragment: string) {
 function stripSchedulingContext(fragment: string) {
   return normalizeActionText(
     fragment
-      .replace(/\b(today|tonight|tomorrow|this morning|this afternoon|this evening|this week|next week)\b/gi, ' ')
+      .replace(/\b(today|tomorrow|tonight|this morning|this afternoon|this evening|this week|next week)\b/gi, ' ')
+      .replace(/\b(next\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))\b/gi, ' ')
+      .replace(/\b((?:by|before|on)\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))\b/gi, ' ')
       .replace(/\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/gi, ' ')
-      .replace(/\b(\d{1,2}(?::\d{2})?\s?(?:am|pm)|noon|midnight|before lunch|after lunch|end of day|eod)\b/gi, ' ')
+      .replace(
+        /\b(at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)|\d{1,2}(?::\d{2})?\s*(?:am|pm)|noon|midnight|morning|afternoon|evening|before lunch|before dinner)\b/gi,
+        ' '
+      )
       .replace(/\b(?:on|via)\s+(?:zoom|google meet|meet|teams|phone)\b/gi, ' ')
-      .replace(/\b(?:in|at)\s+[^,.;\n]+$/gi, ' ')
+      .replace(/\b(?:near|in|at)\s+[^,.;\n]+$/gi, ' ')
       .replace(/\bcan you\b|\bcould you\b|\bplease\b|\bneed to\b|\bremember to\b|\bdon't forget to\b|\bdont forget to\b/gi, ' ')
   );
 }
@@ -266,7 +173,9 @@ function toActionTitle(fragment: string) {
     'join',
     'meet',
     'pay',
-    'submit'
+    'submit',
+    'bring',
+    'buy'
   ];
 
   const lowered = fragment.toLowerCase();
@@ -281,11 +190,11 @@ function toActionTitle(fragment: string) {
     }
   }
 
-  let title = fragment
-    .replace(/\bthe\b|\ba\b|\ban\b/gi, ' ')
-    .replace(/^\s*(and|also|then)\s+/i, ' ');
-
-  title = normalizeActionText(title);
+  const title = normalizeActionText(
+    fragment
+      .replace(/\bthe\b|\ba\b|\ban\b/gi, ' ')
+      .replace(/^\s*(and|also|then)\s+/i, ' ')
+  );
 
   if (!title) {
     return '';
@@ -317,69 +226,93 @@ function buildTitle(fragment: string, itemType: ItemType) {
   return capitalizeWords(stripped || 'Task');
 }
 
-function buildConfidence(text: string, itemType: ItemType, dateLabel?: string, timeLabel?: string) {
-  let score = 0.48;
+function buildConfidenceLevel(
+  itemType: ItemType,
+  hasExactDate: boolean,
+  hasExactTime: boolean,
+  text: string
+): ConfidenceLevel {
+  let score = 0.42;
 
   if (ACTION_PATTERN.test(text)) {
-    score += 0.16;
-  }
-
-  if (itemType === 'event' && (dateLabel || timeLabel)) {
     score += 0.18;
   }
 
-  if (itemType === 'reminder' && REMINDER_PATTERN.test(text)) {
+  if (EVENT_PATTERN.test(text) || REMINDER_PATTERN.test(text)) {
+    score += 0.1;
+  }
+
+  if (hasExactDate) {
     score += 0.14;
   }
 
-  if (EVENT_PATTERN.test(text) || REMINDER_PATTERN.test(text)) {
+  if (hasExactTime) {
+    score += 0.16;
+  }
+
+  if (itemType === 'event' && hasExactDate && hasExactTime) {
     score += 0.08;
   }
 
-  if (text.length <= 120) {
-    score += 0.06;
+  if (score >= 0.82) {
+    return 'high';
   }
 
-  return Math.min(0.96, Number(score.toFixed(2)));
+  if (score >= 0.62) {
+    return 'medium';
+  }
+
+  return 'low';
 }
 
-function toCandidate(fragment: string): CaptureCandidate | null {
+function toCandidate(fragment: string, now: Date): CaptureCandidate | null {
   const cleaned = normalizeWhitespace(fragment);
   if (cleaned.length < 4) {
     return null;
   }
 
-  const dateLabel = extractDateLabel(cleaned);
-  const timeLabel = extractTimeLabel(cleaned);
-  const personLabel = extractPersonLabel(cleaned);
-  const locationLabel = extractLocationLabel(cleaned);
-  const itemType = inferItemType(cleaned, dateLabel, timeLabel, locationLabel);
+  const temporal = extractTemporalInfo(cleaned, now);
+  const locationText = extractLocationText(cleaned);
+  const personText = extractPersonText(cleaned);
+  const itemType = inferItemType(cleaned, Boolean(temporal.dateText || temporal.timeText), Boolean(locationText));
   const title = buildTitle(cleaned, itemType);
 
   if (!title || title.length < 3) {
     return null;
   }
 
-  return {
-    id: crypto.randomUUID(),
-    title,
-    memo: '',
-    durationMinutes: guessDuration(cleaned, itemType),
-    importance: guessImportance(cleaned),
-    due: guessDue(cleaned),
-    preferredTime: guessPreferredTime(cleaned),
-    itemType,
-    dateLabel,
-    timeLabel,
-    personLabel,
-    locationLabel,
-    confidence: buildConfidence(cleaned, itemType, dateLabel, timeLabel),
-    rawText: cleaned,
-    selected: true
-  };
+  return applyDraftScheduling(
+    {
+      id: crypto.randomUUID(),
+      title,
+      memo: '',
+      durationMinutes: guessDuration(cleaned, itemType),
+      importance: guessImportance(cleaned),
+      due: temporal.due,
+      preferredTime: temporal.preferredTime,
+      itemType,
+      dateText: temporal.dateText,
+      timeText: temporal.timeText,
+      parsedDate: temporal.parsedDate,
+      parsedTime: temporal.parsedTime,
+      parsedDateTime: temporal.parsedDateTime,
+      locationText,
+      personText,
+      originalText: cleaned,
+      confidence: buildConfidenceLevel(itemType, Boolean(temporal.parsedDate), Boolean(temporal.parsedTime), cleaned),
+      needsDateReview: temporal.needsDateReview,
+      needsTimeReview: temporal.needsTimeReview,
+      selected: true
+    },
+    now
+  ) as CaptureCandidate;
 }
 
-export function extractCaptureCandidates(text: string): CaptureCandidate[] {
+export function refreshCaptureCandidate(candidate: CaptureCandidate, now = new Date()) {
+  return applyDraftScheduling(candidate, now) as CaptureCandidate;
+}
+
+export function extractCaptureCandidates(text: string, now = new Date()): CaptureCandidate[] {
   const fragments = text
     .replace(/\r/g, '\n')
     .split(/[\n]+|[.!?]+/)
@@ -389,10 +322,13 @@ export function extractCaptureCandidates(text: string): CaptureCandidate[] {
   const candidates: CaptureCandidate[] = [];
 
   fragments.forEach((fragment) => {
-    const candidate = toCandidate(fragment);
+    const candidate = toCandidate(fragment, now);
 
     if (candidate) {
-      candidates.push(candidate);
+      const duplicate = candidates.some((item) => item.title.toLowerCase() === candidate.title.toLowerCase());
+      if (!duplicate) {
+        candidates.push(candidate);
+      }
     }
   });
 

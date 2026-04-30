@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import type { TaskDraft } from '../types';
-import { DEFAULT_TASK_DRAFT } from '../lib/tasks';
+import { AlarmSelector } from './AlarmSelector';
+import type { ItemType, TaskDraft } from '../types';
+import { applyDraftScheduling, DEFAULT_TASK_DRAFT, supportsAlarmSelection, updateAlarmPreference } from '../lib/tasks';
 
 const DURATION_OPTIONS: TaskDraft['durationMinutes'][] = [5, 10, 15, 30, 60];
 const IMPORTANCE_OPTIONS: Array<{ value: TaskDraft['importance']; label: string }> = [
@@ -19,6 +20,11 @@ const TIME_OPTIONS: Array<{ value: TaskDraft['preferredTime']; label: string }> 
   { value: 'afternoon', label: 'Afternoon' },
   { value: 'evening', label: 'Evening' },
   { value: 'anytime', label: 'Any time' }
+];
+const TYPE_OPTIONS: Array<{ value: ItemType; label: string }> = [
+  { value: 'task', label: 'Task' },
+  { value: 'event', label: 'Event' },
+  { value: 'reminder', label: 'Reminder' }
 ];
 
 interface TaskEditorProps {
@@ -63,10 +69,14 @@ export function TaskEditor({
   onSubmit,
   onCancel
 }: TaskEditorProps) {
-  const [draft, setDraft] = useState<TaskDraft>(initialValue ?? DEFAULT_TASK_DRAFT);
+  const [draft, setDraft] = useState<TaskDraft>(() => applyDraftScheduling(initialValue ?? DEFAULT_TASK_DRAFT, new Date()));
+
+  function patchDraft(updates: Partial<TaskDraft>) {
+    setDraft((current) => applyDraftScheduling({ ...current, ...updates }, new Date()));
+  }
 
   useEffect(() => {
-    setDraft(initialValue ?? DEFAULT_TASK_DRAFT);
+    setDraft(applyDraftScheduling(initialValue ?? DEFAULT_TASK_DRAFT, new Date()));
   }, [initialValue]);
 
   return (
@@ -78,11 +88,16 @@ export function TaskEditor({
           return;
         }
 
-        onSubmit({
-          ...draft,
-          title: draft.title.trim(),
-          memo: draft.memo.trim()
-        });
+        onSubmit(
+          applyDraftScheduling(
+            {
+              ...draft,
+              title: draft.title.trim(),
+              memo: draft.memo.trim()
+            },
+            new Date()
+          )
+        );
       }}
     >
       <div className="section-heading">
@@ -97,12 +112,17 @@ export function TaskEditor({
         ) : null}
       </div>
 
+      <div className="field">
+        <span>Type</span>
+        <ChipGroup value={draft.itemType} options={TYPE_OPTIONS} onChange={(value) => patchDraft({ itemType: value as ItemType })} />
+      </div>
+
       <label className="field">
-        <span>Task</span>
+        <span>Title</span>
         <input
           autoFocus
           value={draft.title}
-          onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))}
+          onChange={(event) => patchDraft({ title: event.target.value })}
           placeholder="Reply to one important message"
         />
       </label>
@@ -112,22 +132,55 @@ export function TaskEditor({
         <textarea
           rows={3}
           value={draft.memo}
-          onChange={(event) => setDraft((current) => ({ ...current, memo: event.target.value }))}
+          onChange={(event) => patchDraft({ memo: event.target.value })}
           placeholder="Use this only when a little context helps."
         />
       </label>
+
+      <div className="form-grid">
+        <label className="field field--tight">
+          <span>Date</span>
+          <input
+            value={draft.dateText ?? ''}
+            onChange={(event) => patchDraft({ dateText: event.target.value })}
+            placeholder="Tomorrow or next Tuesday"
+          />
+        </label>
+        <label className="field field--tight">
+          <span>Time</span>
+          <input
+            value={draft.timeText ?? ''}
+            onChange={(event) => patchDraft({ timeText: event.target.value })}
+            placeholder="3 PM or before dinner"
+          />
+        </label>
+      </div>
+
+      <div className="form-grid">
+        <label className="field field--tight">
+          <span>With</span>
+          <input
+            value={draft.personText ?? ''}
+            onChange={(event) => patchDraft({ personText: event.target.value })}
+            placeholder="Person or team"
+          />
+        </label>
+        <label className="field field--tight">
+          <span>Where</span>
+          <input
+            value={draft.locationText ?? ''}
+            onChange={(event) => patchDraft({ locationText: event.target.value })}
+            placeholder="Zoom, cafe, office"
+          />
+        </label>
+      </div>
 
       <div className="field">
         <span>Time</span>
         <ChipGroup
           value={draft.durationMinutes}
           options={DURATION_OPTIONS.map((option) => ({ value: option, label: `${option} min` }))}
-          onChange={(value) =>
-            setDraft((current) => ({
-              ...current,
-              durationMinutes: value as TaskDraft['durationMinutes']
-            }))
-          }
+          onChange={(value) => patchDraft({ durationMinutes: value as TaskDraft['durationMinutes'] })}
         />
       </div>
 
@@ -136,12 +189,7 @@ export function TaskEditor({
         <ChipGroup
           value={draft.importance}
           options={IMPORTANCE_OPTIONS}
-          onChange={(value) =>
-            setDraft((current) => ({
-              ...current,
-              importance: value as TaskDraft['importance']
-            }))
-          }
+          onChange={(value) => patchDraft({ importance: value as TaskDraft['importance'] })}
         />
       </div>
 
@@ -150,12 +198,7 @@ export function TaskEditor({
         <ChipGroup
           value={draft.due}
           options={DUE_OPTIONS}
-          onChange={(value) =>
-            setDraft((current) => ({
-              ...current,
-              due: value as TaskDraft['due']
-            }))
-          }
+          onChange={(value) => patchDraft({ due: value as TaskDraft['due'] })}
         />
       </div>
 
@@ -164,14 +207,21 @@ export function TaskEditor({
         <ChipGroup
           value={draft.preferredTime}
           options={TIME_OPTIONS}
-          onChange={(value) =>
-            setDraft((current) => ({
-              ...current,
-              preferredTime: value as TaskDraft['preferredTime']
-            }))
-          }
+          onChange={(value) => patchDraft({ preferredTime: value as TaskDraft['preferredTime'] })}
         />
       </div>
+
+      {supportsAlarmSelection(draft) ? (
+        <AlarmSelector
+          alarmEnabled={draft.alarmEnabled}
+          alarmBeforeMinutes={draft.alarmBeforeMinutes}
+          alarmNeedsReview={draft.alarmNeedsReview}
+          canSelectTimedAlarm={Boolean(draft.parsedDateTime)}
+          onChange={(alarmEnabled, alarmBeforeMinutes) =>
+            setDraft((current) => updateAlarmPreference(current, alarmEnabled, alarmBeforeMinutes))
+          }
+        />
+      ) : null}
 
       <button type="submit" className="primary-button" disabled={!draft.title.trim()}>
         {submitLabel}

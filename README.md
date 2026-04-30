@@ -1,32 +1,90 @@
 # What's Next
 
-What's Next is an English-first, mobile-first PWA for testing one product promise:
+What's Next is an English-first, mobile-first PWA for one practical promise:
 
 **Stop retyping tasks and plans.**
 
-Core line: `Capture now. Decide later.`
+Core lines:
 
-The current PWA is an honesty-first capture test. You paste text manually for now, then What's Next turns it into tasks, reminders, and calendar-ready events.
+- `Capture the plan. Keep the reminder.`
+- `Messages in. Tasks, events, and reminders out.`
 
-## Product Direction
+The current product is no longer just a capture prototype. It is a small working PWA for turning pasted notes, messages, and meeting text into saved follow-ups you can review and act on today.
 
-- Primary problem: people hate retyping their life into task lists and calendars
-- Current PWA role: test extraction quality and capture flow with pasted text
-- Native iOS role later: reduce input friction with Share Extension, EventKit, App Intents, widgets, and local notifications
-- Local-first data only
+## What The PWA Does Today
+
+Workflow:
+
+1. Paste a meeting note, message, email snippet, or plan
+2. Extract tasks, events, and reminders
+3. Review and edit the detected items
+4. Save selected items locally
+5. Check `Upcoming` to see what might be missed
+6. Download a `.ics` calendar file when an event is clear enough
+7. Copy event details when calendar export is not ready
+
+Current tabs:
+
+- `Capture`
+- `Upcoming`
+- `Now`
+- `Tasks`
+- `Settings`
+
+`Add manually` still exists, but it is intentionally a fallback rather than the main path.
+
+## Practical Features In This Version
+
+- Capture-first home screen
+- Rule-based extraction for tasks, events, and reminders
+- Editable candidate cards before save
+- `Needs date` and `Needs time` review states
+- Alarm options for calendar export
+- Calendar-ready event and reminder records
+- Downloadable `.ics` files when date and time are clear
+- `Copy event details` fallback when export is awkward or ambiguous
+- Local `Upcoming` view for `Today`, `Tomorrow`, `This week`, `Needs review`, and `Later / No date`
+- Local-only founder QA mode
+
+## PWA Reality
+
+This app is honest about what it can and cannot do today.
+
+The PWA does support:
+
+- pasted-text capture
+- local task, reminder, and event storage
+- calendar-ready records
+- alarm choices for calendar export
+- `.ics` download when date and time are clear
+- copied event details
+- local upcoming review
+
+The PWA does not yet support:
+
+- direct iOS Calendar write
+- direct iOS Reminders write
+- guaranteed system notifications
+- background message reading
+- automatic KakaoTalk, Mail, or Messages import
+
+Native iOS later can add:
+
+- Share Extension
+- EventKit Calendar save
+- EventKit Reminder save
+- native alarms
+- widgets
+- local notifications
+
+## Privacy
+
 - No account
 - No server
-- No automatic message reading in this PWA
+- No automatic message reading
+- We only use what you paste here
 
-This project is technically viable as both a PWA and a SwiftUI iOS candidate, but it is **not App Store ready yet**. The goal right now is to validate that capture meaningfully reduces manual entry before spending money on Apple Developer enrollment.
-
-## Current App Shape
-
-- `Capture` is the default and dominant flow
-- `Now` is the follow-through layer
-- `Tasks` shows saved tasks, events, and reminders
-- `Settings` holds privacy notes, founder QA, and reset/sample tools
-- `Add manually` is still available, but intentionally secondary
+Founder QA exports do **not** include pasted message text or task titles by default.
 
 ## Development
 
@@ -47,9 +105,7 @@ Vite production output directory: `dist`
 
 ### Vercel
 
-Use Vercel first. It is the fastest way to test the product on an iPhone Home Screen.
-
-Vercel import settings:
+Recommended for fast iPhone testing.
 
 - Framework Preset: `Vite`
 - Build Command: `npm run build`
@@ -57,58 +113,41 @@ Vercel import settings:
 
 ### GitHub Pages
 
-GitHub Pages works, but Vercel is still the better default for this capture test.
-
-If you deploy to a project site like `https://<account>.github.io/<repo>/`, build with a base path:
+If you deploy to a project site like `https://<account>.github.io/<repo>/`, build with:
 
 ```bash
 VITE_BASE_PATH=/whatsnext/ npm run build
 ```
 
-## What The PWA Validates
+## What To Validate
 
-- Does pasted text become useful tasks, events, and reminders?
-- Does capture clearly reduce retyping?
-- Is paste still too annoying even when extraction is good?
-- Would Share Sheet, Calendar save, or Reminders save be the missing piece?
-- Does the product feel worth keeping on the iPhone Home Screen?
-
-## Try On iPhone Before Native Spend
-
-Recommended flow:
-
-1. Deploy to Vercel.
-2. Open the deployed URL in Safari on iPhone.
-3. Add it to Home Screen.
-4. Use it for 3 days as if it were already your app.
-5. Decide whether the main remaining friction is native-only capture and save behavior.
-
-See [IPHONE_PWA_TEST_GUIDE.md](./IPHONE_PWA_TEST_GUIDE.md) for the full test plan.
+- Does capture reduce retyping?
+- Do extracted items feel usable after light editing?
+- Do `Upcoming` and `Needs review` help avoid misses?
+- Is `.ics` download useful enough to bridge the PWA limitation?
+- Is the main remaining complaint native-only capture and save friction?
 
 ## Founder QA Mode
 
-For a 2 to 3 day founder test, open the deployed app with `?qa=1`.
-
-Example:
+Enable local-only QA with:
 
 ```text
 https://whatsnext-zeta.vercel.app/?qa=1
 ```
 
-This enables a local-only QA panel in `Settings`.
+Tracked signals include:
 
-What it adds:
-
-- capture opens
 - extraction runs
-- detected item totals
-- saved detected item totals
-- approximate manual entries avoided
-- manual-add counts
+- detected items
+- saved detected items
+- manual entries avoided approx
+- manual add count
 - capture vs manual ratio
-- event and reminder detection counts
-- local founder notes
-- plain-text summary copy
-- JSON export for expert review
+- calendar-ready items
+- calendar file downloads
+- copied event details
+- items needing review
+- alarm selections
+- upcoming views
 
-Exports do **not** include pasted message text or task titles by default.
+See [IPHONE_PWA_TEST_GUIDE.md](/F:/whatsnext-git/IPHONE_PWA_TEST_GUIDE.md) for the 3-day iPhone test plan.

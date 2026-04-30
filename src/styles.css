@@ -51,6 +51,10 @@ button {
   border: 0;
 }
 
+button:disabled {
+  cursor: not-allowed;
+}
+
 input,
 textarea {
   width: 100%;
@@ -414,15 +418,34 @@ textarea:focus {
   justify-content: flex-start;
 }
 
+.export-panel,
+.alarm-selector {
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.52);
+}
+
 .status-pill.is-done {
   background: rgba(95, 158, 115, 0.12);
   color: #3e6f4f;
+}
+
+.status-pill--ready {
+  background: rgba(86, 148, 101, 0.14);
+  color: #356744;
 }
 
 .field {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.form-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .field--spacious textarea {
@@ -491,6 +514,10 @@ textarea:focus {
   background: var(--accent);
   color: #f8f4ee;
   transform: translateY(-1px);
+}
+
+.chip:disabled {
+  opacity: 0.45;
 }
 
 .primary-button,
@@ -646,6 +673,12 @@ textarea:focus {
   gap: 12px;
 }
 
+.upcoming-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 .meta-row--summary {
   margin-top: 0;
 }
@@ -713,7 +746,8 @@ textarea:focus {
   }
 
   .summary-grid--three,
-  .qa-metrics-grid {
+  .qa-metrics-grid,
+  .form-grid {
     grid-template-columns: 1fr;
   }
 

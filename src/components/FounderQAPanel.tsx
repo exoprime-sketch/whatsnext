@@ -30,7 +30,7 @@ export function FounderQAPanel({
       <div className="section-heading">
         <div>
           <h2>Founder QA</h2>
-          <p>Local-only test signals for input reduction. Exports exclude pasted text and task titles by default.</p>
+          <p>Local-only signals for capture, review, and calendar usefulness. Exports exclude pasted text and task titles by default.</p>
         </div>
         <button type="button" className="ghost-button" onClick={onDisable}>
           Disable QA mode
@@ -44,29 +44,29 @@ export function FounderQAPanel({
           <p>Capture opened {summary.captureOpenedCount} times</p>
         </article>
         <article className="summary-card summary-card--quiet qa-metric-card">
-          <div className="eyebrow">Detected items</div>
-          <strong>{summary.detectedItemsCount}</strong>
+          <div className="eyebrow">Typing saved</div>
+          <strong>{summary.manualEntriesAvoidedApprox}</strong>
           <p>{summary.savedDetectedItemsCount} saved from capture</p>
         </article>
         <article className="summary-card summary-card--quiet qa-metric-card">
-          <div className="eyebrow">Typing saved</div>
-          <strong>{summary.manualEntriesAvoidedApprox}</strong>
-          <p>Approx manual entries avoided</p>
+          <div className="eyebrow">Calendar-ready</div>
+          <strong>{summary.calendarReadyItems}</strong>
+          <p>{summary.calendarExports} calendar files downloaded</p>
         </article>
         <article className="summary-card summary-card--quiet qa-metric-card">
-          <div className="eyebrow">Manual adds</div>
-          <strong>{summary.manualTaskCreatedCount}</strong>
-          <p>Capture vs manual: {summary.captureVsManualRatio}</p>
+          <div className="eyebrow">Copied details</div>
+          <strong>{summary.copiedEventDetails}</strong>
+          <p>Useful when export is not ready</p>
         </article>
         <article className="summary-card summary-card--quiet qa-metric-card">
-          <div className="eyebrow">Events</div>
-          <strong>{summary.eventDetections}</strong>
-          <p>{summary.captureSavedEventCount} saved locally</p>
+          <div className="eyebrow">Needs review</div>
+          <strong>{summary.itemsNeedingDateReview + summary.itemsNeedingTimeReview}</strong>
+          <p>{summary.itemsNeedingDateReview} date, {summary.itemsNeedingTimeReview} time</p>
         </article>
         <article className="summary-card summary-card--quiet qa-metric-card">
-          <div className="eyebrow">Reminders</div>
-          <strong>{summary.reminderDetections}</strong>
-          <p>{summary.captureSavedReminderCount} saved locally</p>
+          <div className="eyebrow">Alarms</div>
+          <strong>{summary.alarmSelections}</strong>
+          <p>Upcoming viewed {summary.upcomingViewedCount} times</p>
         </article>
       </div>
 
@@ -74,7 +74,7 @@ export function FounderQAPanel({
         <div className="section-heading">
           <div>
             <h2>Retention and follow-through</h2>
-            <p>These still matter after capture becomes the front door.</p>
+            <p>Capture matters most, but repeated use still decides whether this is good enough.</p>
           </div>
         </div>
         <div className="qa-inline-metrics">
@@ -82,10 +82,8 @@ export function FounderQAPanel({
           <span>Home Screen: {summary.standaloneOpens}</span>
           <span>Day 2: {summary.returnedOnDay2 ? 'Yes' : 'No'}</span>
           <span>Day 3: {summary.returnedOnDay3 ? 'Yes' : 'No'}</span>
-          <span>Done: {summary.totalDoneClicks}</span>
-          <span>Later: {summary.totalLaterClicks}</span>
-          <span>Not today: {summary.totalNotTodayClicks}</span>
-          <span>Manual after capture: {summary.usedManualAddAfterCaptureCount}</span>
+          <span>Manual adds: {summary.manualTaskCreatedCount}</span>
+          <span>Capture vs manual: {summary.captureVsManualRatio}</span>
         </div>
       </section>
 
@@ -108,7 +106,7 @@ export function FounderQAPanel({
             rows={3}
             value={note}
             onChange={(event) => setNote(event.target.value)}
-            placeholder="Example: Extraction found the meeting, but I still wished I could share directly from Messages."
+            placeholder="Example: The alarm choices were useful, but I still wanted one-tap native Calendar save."
           />
         </label>
 

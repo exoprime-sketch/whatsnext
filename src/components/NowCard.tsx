@@ -1,5 +1,5 @@
+import { formatParsedDate, formatParsedTime, getDueLabel } from '../lib/time';
 import type { Task } from '../types';
-import { getDueLabel } from '../lib/time';
 
 const TYPE_LABEL = {
   task: 'Task',
@@ -53,7 +53,10 @@ export function NowCard({
         <span>{TYPE_LABEL[task.itemType]}</span>
         <span>{task.durationMinutes} min</span>
         {task.due !== 'none' ? <span>{getDueLabel(task.due)}</span> : null}
-        {task.timeLabel ? <span>{task.timeLabel}</span> : null}
+        {task.parsedDate ? <span>{formatParsedDate(task.parsedDate)}</span> : task.dateText ? <span>{task.dateText}</span> : null}
+        {task.parsedTime ? <span>{formatParsedTime(task.parsedTime)}</span> : task.timeText ? <span>{task.timeText}</span> : null}
+        {task.needsDateReview ? <span>Needs date</span> : null}
+        {task.needsTimeReview ? <span>Needs time</span> : null}
       </div>
       {task.memo ? <p className="now-card__memo">{task.memo}</p> : null}
       {reasons.length > 1 ? (
@@ -76,7 +79,7 @@ export function NowCard({
           Not today
         </button>
       </div>
-      <p className="subcopy">Capture is the front door. This card is the follow-through layer.</p>
+      <p className="subcopy">Use this to prep, confirm, or clear the next thing before it slips.</p>
     </section>
   );
 }

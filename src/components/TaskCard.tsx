@@ -1,5 +1,6 @@
+import { EventExportPanel } from './EventExportPanel';
+import { formatParsedDate, formatParsedTime, getDueLabel } from '../lib/time';
 import type { Task } from '../types';
-import { getDueLabel } from '../lib/time';
 
 const IMPORTANCE_LABEL = {
   high: 'High priority',
@@ -26,6 +27,8 @@ interface TaskCardProps {
   onComplete?: (taskId: string) => void;
   onEdit?: (task: Task) => void;
   onDelete?: (taskId: string) => void;
+  onDownloadICS?: (task: Task) => void;
+  onCopyDetails?: (task: Task) => void;
 }
 
 export function TaskCard({
@@ -33,7 +36,9 @@ export function TaskCard({
   showStatus = false,
   onComplete,
   onEdit,
-  onDelete
+  onDelete,
+  onDownloadICS,
+  onCopyDetails
 }: TaskCardProps) {
   const metaItems = [TYPE_LABEL[task.itemType], `${task.durationMinutes} min`];
 
@@ -49,23 +54,29 @@ export function TaskCard({
     metaItems.push(TIME_LABEL[task.preferredTime]);
   }
 
-  if (task.dateLabel) {
-    metaItems.push(task.dateLabel);
+  if (task.parsedDate) {
+    metaItems.push(formatParsedDate(task.parsedDate));
+  } else if (task.dateText) {
+    metaItems.push(task.dateText);
   }
 
-  if (task.timeLabel) {
-    metaItems.push(task.timeLabel);
+  if (task.parsedTime) {
+    metaItems.push(formatParsedTime(task.parsedTime));
+  } else if (task.timeText) {
+    metaItems.push(task.timeText);
   }
 
-  if (task.personLabel) {
-    metaItems.push(task.personLabel);
+  if (task.personText) {
+    metaItems.push(task.personText);
   }
 
-  if (task.locationLabel) {
-    metaItems.push(task.locationLabel);
+  if (task.locationText) {
+    metaItems.push(task.locationText);
   }
 
   const delayedCount = task.snoozeCount + task.negativeFeedbackCount;
+  const reviewLabel = task.needsDateReview ? 'Needs date' : task.needsTimeReview ? 'Needs time' : null;
+  const showExportPanel = Boolean(onCopyDetails && onDownloadICS);
 
   return (
     <article className="task-card">
@@ -75,6 +86,8 @@ export function TaskCard({
             <div className="task-badge-row">
               <span className={`type-pill type-pill--${task.itemType}`}>{TYPE_LABEL[task.itemType]}</span>
               {task.source === 'capture' ? <span className="status-pill">Captured</span> : null}
+              {task.calendarReady ? <span className="status-pill status-pill--ready">Calendar-ready</span> : null}
+              {reviewLabel ? <span className="status-pill">{reviewLabel}</span> : null}
               {showStatus ? (
                 <span className={`status-pill ${task.status === 'completed' ? 'is-done' : ''}`}>
                   {task.status === 'completed' ? 'Done' : 'Waiting'}
@@ -90,10 +103,18 @@ export function TaskCard({
           ))}
         </div>
         {task.memo ? <p className="task-card__memo">{task.memo}</p> : null}
+        {task.alarmLabel && task.alarmEnabled ? <p className="task-card__insight">Alarm: {task.alarmLabel}</p> : null}
         {delayedCount > 0 ? (
           <p className="task-card__insight">
             Delayed {delayedCount} {delayedCount === 1 ? 'time' : 'times'}
           </p>
+        ) : null}
+        {showExportPanel ? (
+          <EventExportPanel
+            item={task}
+            onDownload={() => onDownloadICS?.(task)}
+            onCopy={() => onCopyDetails?.(task)}
+          />
         ) : null}
       </div>
       <div className="task-card__actions">

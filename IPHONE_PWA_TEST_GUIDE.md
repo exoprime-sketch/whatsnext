@@ -1,93 +1,83 @@
 # iPhone PWA Test Guide
 
+## URLs
+
+- Main app: `https://whatsnext-zeta.vercel.app/`
+- QA mode: `https://whatsnext-zeta.vercel.app/?qa=1`
+
 ## Purpose
 
-Use the PWA like a real iPhone product before paying for Apple Developer enrollment.
+Use the PWA like a real iPhone tool before paying for Apple Developer enrollment.
 
-The question is no longer just:
+The question is now:
 
-**Does What's Next tell me what to do now?**
+**Does What's Next reduce retyping enough to be worth using today?**
 
-The better question is:
+This version should feel like:
 
-**Does What's Next reduce retyping enough to feel worth keeping?**
+- a small working tool
+- a capture inbox
+- a message-to-action converter
+- a lightweight follow-up system
 
-## What You Need
+## What The Current PWA Supports
 
-- The GitHub repository
-- A Vercel account or GitHub Pages setup
-- An iPhone
-- Safari
+- pasted-text capture
+- extracted tasks, events, and reminders
+- editing before save
+- saved local records
+- `Upcoming` review
+- `Needs date` and `Needs time` states
+- alarm options for calendar export
+- `.ics` downloads when date and time are clear
+- `Copy event details` fallback
 
-## Recommended Deployment: Vercel
+## What The Current PWA Does Not Support Yet
 
-Use Vercel first.
+- direct iOS Calendar write
+- direct iOS Reminders write
+- guaranteed system notifications
+- automatic message reading
+- Share Extension capture
 
-Settings:
+## Add To Home Screen
 
-- Framework Preset: `Vite`
-- Build Command: `npm run build`
-- Output Directory: `dist`
-
-Steps:
-
-1. Push the project to GitHub.
-2. Import the repo into Vercel.
-3. Confirm the build settings above.
-4. Deploy.
-5. Open the HTTPS URL on iPhone Safari.
-
-## Alternative Deployment: GitHub Pages
-
-GitHub Pages is valid, but it is a little more fragile because it usually runs under a subpath.
-
-If your Pages URL is `https://<account>.github.io/<repo>/`, build with:
-
-```bash
-VITE_BASE_PATH=/whatsnext/ npm run build
-```
-
-Use this only if you specifically want Pages. For fast iteration, Vercel is still the better choice.
-
-## Add To Home Screen On iPhone
-
-1. Open the deployed URL in Safari.
+1. Open the main app URL in Safari.
 2. Tap the Share button.
 3. Choose `Add to Home Screen`.
 4. Confirm the icon name shows `What's Next`.
-5. Launch the app from the Home Screen icon.
+5. Launch it from the Home Screen icon.
 
 ## Enable Founder QA Mode
 
-1. Open the deployed URL with `?qa=1` at the end.
-   Example: `https://whatsnext-zeta.vercel.app/?qa=1`
-2. Let the app load once in Safari. This stores `qaMode=true` locally on the device.
-3. Add the app to Home Screen after enabling QA mode, or open it again from the Home Screen if it is already installed.
-4. Open `Settings` inside the app.
+1. Open the QA URL in Safari once.
+2. Let the app finish loading so `qa=1` is stored locally.
+3. Add the app to Home Screen after that, or reopen the existing Home Screen install.
+4. Open `Settings`.
 5. Confirm the `Founder QA` panel appears.
 
-## What To Check Immediately
+## Immediate Check
 
-- Does the first screen explain itself in 5 seconds?
-- Does `Capture` feel like the product?
-- Is the privacy line honest and reassuring?
-- Is it clear that the PWA only uses pasted text for now?
-- Does the native roadmap feel like an upgrade path rather than an apology?
+- Does `Capture` explain the product in 5 seconds?
+- Does the app feel useful before native iOS features exist?
+- Is `Upcoming` easy to scan on iPhone?
+- Are `Download calendar file` and `Copy event details` honest and usable?
+- Do `Needs date` and `Needs time` help rather than confuse?
 
 ## 3-Day Test Plan
 
 ### Day 1
 
-- Paste one real meeting note or message
+- Paste one real meeting note
 - Save detected items
-- Check whether this avoided manual entry
-- Use `Now` once
+- Download one calendar file if available
+- Check `Upcoming`
 
 ### Day 2
 
-- Paste a real plan or appointment message
-- Check event detection
-- Edit one detected item before saving
+- Paste one real appointment or friend plan
+- Adjust an alarm option
+- Copy event details or download `.ics`
 - Reopen from Home Screen
 
 ### Day 3
@@ -95,84 +85,65 @@ Use this only if you specifically want Pages. For fast iteration, Vercel is stil
 - Export the QA summary
 - Answer:
   1. Did this reduce retyping?
-  2. Was paste still too annoying?
-  3. Would Share Sheet make this worth using?
-  4. Would Calendar or Reminders save make this worth paying for?
-  5. What was still too manual?
+  2. Did `Upcoming` help you avoid missing something?
+  3. Was `.ics` download useful or awkward?
+  4. Would Share Sheet make this worth using?
+  5. Would direct Calendar or Reminder save justify Apple Developer spending?
 
 ## Test Checklist
 
-### Core Value
+### Capture Value
 
-- The first screen says `Stop retyping tasks and plans`
-- The paste flow feels like the primary job
-- Extraction makes messy text feel lighter to manage
-- The app feels more like input reduction than task administration
+- Meeting notes become usable tasks
+- Appointment-style text becomes event-like items
+- Reminder-like text becomes reminder-like items
+- Bad extractions can be edited or deselected quickly
 
-### Capture Quality
+### Date And Time Quality
 
-- Pasting messy notes creates usable tasks
-- Appointment-style messages can become event-shaped items
-- Reminder-like text becomes reminder-shaped items
-- You can edit or deselect bad detections before saving
+- Deadlines like `by Friday` are detected
+- Plans like `Saturday at 7 PM` become calendar-ready
+- Ambiguous times like `morning` stay visible as review items
+- The app does not hallucinate false precision
+
+### Practical Follow-Through
+
+- `Upcoming` makes missed items visible
+- `Now` helps with prep, review, or follow-up
+- Calendar-ready items are obvious
+- Copy and download actions are easy to tap on iPhone
 
 ### Honesty And Trust
 
-- The app does not claim to read messages automatically
-- The privacy line is clear: only pasted text is used
-- The native iOS direction sounds plausible but not overclaimed
-- QA export does not include pasted text by default
+- The app does not claim native calendar sync
+- The app does not claim automatic message reading
+- The privacy line is clear
+- QA export excludes pasted text and titles by default
 
-### Daily Use
-
-- `Now` still helps with follow-through after capture
-- Manual add is available but not competing with capture
-- Reopening from Home Screen still feels good
-- Local persistence works without accounts or sync
-
-## What You Can Validate In The PWA
-
-- Mobile layout quality
-- Home Screen install experience
-- Standalone app feel
-- Capture-first messaging
-- Extraction usefulness
-- Local save flow for tasks, reminders, and calendar-ready events
-- Whether capture meaningfully reduces manual entry
-- Local-only QA event signals
-
-## What You Cannot Validate In The PWA
-
-- Native Share Extension capture
-- Real Calendar write
-- Real Reminders write
-- Native widgets
-- Native notification permission flow
-- TestFlight install experience
-- App Store packaging quality
-
-## What To Export After 3 Days
+## Founder QA Export
 
 From `Settings > Founder QA`:
 
-- Tap `Copy QA summary` for a plain-text review summary
+- Tap `Copy QA summary` for a readable summary
 - Tap `Download QA JSON` for the raw local event log
-- Keep one short founder note about what still felt too manual
+- Save one short note about what still felt too manual
 
-Share the summary, JSON export, and one written conclusion:
+Useful QA questions:
 
-- Did this reduce retyping?
-- Was paste still too annoying?
-- Would Share Sheet make this clearly better?
-- Would Calendar or Reminders save make this worth paying for?
-- What was still too manual?
+- Did capture reduce manual typing?
+- Did the user save extracted items?
+- Did the user use calendar export?
+- Did the user view `Upcoming`?
+- Did the user still need manual add?
 
 ## Apple Developer Spending Criteria
 
-Only spend money on native iOS if all of these are true:
+Spend on native iOS next only if most of these feel true:
 
 - extraction is useful
 - manual entry is clearly reduced
-- the main remaining complaint is `I wish this had Share Sheet / Calendar save / Reminder save`
+- `Upcoming` makes misses less likely
+- `.ics` or copied details are usable enough to bridge the gap
+- the main complaint becomes `I wish this had Share Sheet / direct Calendar save / direct Reminder save`
 
-If those signals are weak, keep refining the PWA before paying for Apple Developer enrollment.
+If 4 or more of these are effectively `Yes`, the case for Apple Developer spending is much stronger.

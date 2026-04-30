@@ -6,10 +6,30 @@ export type TimeBand = 'morning' | 'afternoon' | 'evening' | 'night';
 export type TaskFeedbackType = 'snooze' | 'skipToday' | 'negative';
 export type TaskSource = 'manual' | 'capture' | 'sample';
 export type ItemType = 'task' | 'event' | 'reminder';
-export type AppView = 'capture' | 'today' | 'add' | 'list' | 'settings';
+export type AppView = 'capture' | 'upcoming' | 'now' | 'tasks' | 'settings';
 export type TaskFilter = 'all' | 'today' | 'completed' | 'postponed';
+export type ConfidenceLevel = 'low' | 'medium' | 'high';
 
-export interface TaskDraft {
+export interface AlarmState {
+  alarmEnabled?: boolean;
+  alarmBeforeMinutes?: number | null;
+  alarmLabel?: string;
+  alarmNeedsReview?: boolean;
+}
+
+export interface CalendarState {
+  calendarReady?: boolean;
+  calendarExportedAt?: string;
+  icsDownloadCount?: number;
+  copiedDetailsCount?: number;
+}
+
+export interface ReviewState {
+  needsDateReview?: boolean;
+  needsTimeReview?: boolean;
+}
+
+export interface TaskDraft extends AlarmState, CalendarState, ReviewState {
   title: string;
   memo: string;
   durationMinutes: 5 | 10 | 15 | 30 | 60;
@@ -17,10 +37,15 @@ export interface TaskDraft {
   due: DueBucket;
   preferredTime: PreferredTime;
   itemType: ItemType;
-  dateLabel?: string;
-  timeLabel?: string;
-  personLabel?: string;
-  locationLabel?: string;
+  dateText?: string;
+  timeText?: string;
+  parsedDate?: string;
+  parsedTime?: string;
+  parsedDateTime?: string;
+  locationText?: string;
+  personText?: string;
+  originalText?: string;
+  confidence?: ConfidenceLevel;
 }
 
 export interface Task extends TaskDraft {
@@ -70,28 +95,30 @@ export interface RecommendationResult {
 
 export interface CaptureCandidate extends TaskDraft {
   id: string;
-  confidence: number;
-  rawText: string;
   selected: boolean;
 }
 
 export type QAEventName =
   | 'app_open'
   | 'standalone_open'
-  | 'first_task_created'
-  | 'task_created'
   | 'manual_task_created'
+  | 'item_marked_done'
   | 'now_card_viewed'
-  | 'now_card_done'
   | 'now_card_later'
   | 'now_card_not_today'
   | 'now_card_changed'
   | 'capture_opened'
-  | 'capture_pasted'
-  | 'capture_candidate_saved'
   | 'extraction_run'
   | 'capture_items_saved'
   | 'used_manual_add_after_capture'
+  | 'alarm_option_selected'
+  | 'calendar_export_available'
+  | 'calendar_file_downloaded'
+  | 'event_details_copied'
+  | 'item_marked_needs_review'
+  | 'upcoming_viewed'
+  | 'date_review_completed'
+  | 'time_review_completed'
   | 'settings_opened'
   | 'data_reset'
   | 'sample_tasks_restored';
@@ -105,7 +132,6 @@ export interface QAEventMetadata {
   completedTaskCount?: number;
   nowTaskId?: string;
   previousNowTaskId?: string;
-  captureCandidateCount?: number;
   detectedItemsCount?: number;
   savedDetectedItemsCount?: number;
   extractedTaskCount?: number;
@@ -115,9 +141,16 @@ export interface QAEventMetadata {
   savedEventCount?: number;
   savedReminderCount?: number;
   manualEntriesAvoidedApprox?: number;
+  calendarReadyCount?: number;
+  calendarExportCount?: number;
+  eventDetailsCopiedCount?: number;
+  itemsNeedingDateReviewCount?: number;
+  itemsNeedingTimeReviewCount?: number;
+  alarmSelectionCount?: number;
   displayMode?: DisplayMode;
   source?: TaskSource;
   itemType?: ItemType;
+  alarmBeforeMinutes?: number | null;
 }
 
 export interface QAEvent {
@@ -163,6 +196,13 @@ export interface QASummary {
   usedManualAddAfterCaptureCount: number;
   eventDetections: number;
   reminderDetections: number;
+  calendarReadyItems: number;
+  calendarExports: number;
+  copiedEventDetails: number;
+  itemsNeedingDateReview: number;
+  itemsNeedingTimeReview: number;
+  alarmSelections: number;
+  upcomingViewedCount: number;
   returnedOnDay2: boolean;
   returnedOnDay3: boolean;
   currentActiveTaskCount: number;
