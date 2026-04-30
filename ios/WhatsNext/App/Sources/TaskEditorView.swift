@@ -109,7 +109,7 @@ struct TaskEditorView: View {
                             RoundedRectangle(cornerRadius: 20, style: .continuous)
                                 .fill(draft.trimmedTitle.isEmpty ? Color.gray.opacity(0.2) : Color(red: 0.20, green: 0.15, blue: 0.11))
                         )
-                        .foregroundStyle(draft.trimmedTitle.isEmpty ? .secondary : .white)
+                        .foregroundColor(draft.trimmedTitle.isEmpty ? Color.secondary : Color.white)
                 }
                 .disabled(draft.trimmedTitle.isEmpty)
 
