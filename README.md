@@ -71,3 +71,25 @@ Recommended flow:
 5. Decide whether the value is strong enough to justify native iOS work.
 
 See [IPHONE_PWA_TEST_GUIDE.md](./IPHONE_PWA_TEST_GUIDE.md) for the full test plan.
+
+## Founder QA Mode
+
+For a 2 to 3 day founder test, open the deployed app with `?qa=1`.
+
+Example:
+
+```text
+https://whatsnext-zeta.vercel.app/?qa=1
+```
+
+This enables a local-only QA panel in `Settings` and stores event logs only on the device.
+
+What it adds:
+
+- app open tracking
+- standalone open tracking
+- Now Card action tracking
+- Capture usage tracking
+- local founder notes
+- plain-text summary copy
+- JSON export for expert review

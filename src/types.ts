@@ -72,3 +72,73 @@ export interface CaptureCandidate extends TaskDraft {
   rawText: string;
   selected: boolean;
 }
+
+export type QAEventName =
+  | 'app_open'
+  | 'standalone_open'
+  | 'first_task_created'
+  | 'task_created'
+  | 'now_card_viewed'
+  | 'now_card_done'
+  | 'now_card_later'
+  | 'now_card_not_today'
+  | 'now_card_changed'
+  | 'capture_opened'
+  | 'capture_pasted'
+  | 'capture_candidate_saved'
+  | 'settings_opened'
+  | 'data_reset'
+  | 'sample_tasks_restored';
+
+export type QARating = 'Clear' | 'Useful' | 'Annoying' | 'Confusing' | 'Worth keeping';
+export type DisplayMode = 'standalone' | 'browser';
+
+export interface QAEventMetadata {
+  taskCount?: number;
+  activeTaskCount?: number;
+  completedTaskCount?: number;
+  nowTaskId?: string;
+  previousNowTaskId?: string;
+  captureCandidateCount?: number;
+  displayMode?: DisplayMode;
+  source?: TaskSource;
+}
+
+export interface QAEvent {
+  id: string;
+  eventName: QAEventName;
+  timestamp: string;
+  dateKey: string;
+  metadata?: QAEventMetadata;
+}
+
+export interface QAFeedback {
+  id: string;
+  timestamp: string;
+  dateKey: string;
+  note: string;
+  rating?: QARating;
+}
+
+export interface QAData {
+  events: QAEvent[];
+  feedback: QAFeedback[];
+}
+
+export interface QASummary {
+  firstOpenAt: string | null;
+  lastOpenAt: string | null;
+  activeDays: number;
+  totalAppOpens: number;
+  standaloneOpens: number;
+  totalTasksCreated: number;
+  totalDoneClicks: number;
+  totalLaterClicks: number;
+  totalNotTodayClicks: number;
+  captureOpenedCount: number;
+  captureSavedCount: number;
+  returnedOnDay2: boolean;
+  returnedOnDay3: boolean;
+  currentActiveTaskCount: number;
+  currentCompletedTaskCount: number;
+}

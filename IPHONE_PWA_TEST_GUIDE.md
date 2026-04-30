@@ -54,6 +54,15 @@ Use this only if you specifically want Pages. For fast iteration, Vercel is stil
 4. Confirm the icon name shows `What's Next`.
 5. Launch the app from the Home Screen icon.
 
+## Enable Founder QA Mode
+
+1. Open the deployed URL with `?qa=1` at the end.
+   Example: `https://whatsnext-zeta.vercel.app/?qa=1`
+2. Let the app load once in Safari. This stores `qaMode=true` locally on the device.
+3. Add the app to Home Screen after enabling QA mode, or open it again from the Home Screen if it is already installed.
+4. Open `Settings` inside the app.
+5. Confirm the `Founder QA` panel appears.
+
 ## What To Check Immediately
 
 - Does the icon look clean on the home screen?
@@ -65,6 +74,8 @@ Use this only if you specifically want Pages. For fast iteration, Vercel is stil
 
 ### Day 1
 
+- Open from Safari
+- Enable QA mode
 - Add 5 real tasks
 - Use the Now Card once
 - Add the app to Home Screen
@@ -77,6 +88,8 @@ Use this only if you specifically want Pages. For fast iteration, Vercel is stil
 
 ### Day 3
 
+- Export the QA summary
+- Write one note: `What felt annoying?`
 - Ask: did this reduce deciding?
 - Ask: would I keep this on my home screen?
 - Ask: is native iOS worth building?
@@ -118,7 +131,22 @@ Use this only if you specifically want Pages. For fast iteration, Vercel is stil
 - Task entry speed
 - Capture usefulness
 - Local persistence
+- Local-only QA event signals
 - Whether the product deserves repeated opens
+
+## What To Export After 3 Days
+
+From `Settings > Founder QA`:
+
+- Tap `Copy QA summary` for a plain-text review summary
+- Tap `Download QA JSON` for the raw local event log
+- Keep one short founder note about what felt annoying or unclear
+
+Share the summary, JSON export, and one written conclusion:
+
+- Would you keep this on your Home Screen?
+- Did it reduce deciding?
+- What should change next?
 
 ## What You Cannot Validate In The PWA
 

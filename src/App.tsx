@@ -1,10 +1,24 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { BottomNav } from './components/BottomNav';
+import { FounderQAPanel } from './components/FounderQAPanel';
 import { NowCard } from './components/NowCard';
 import { TaskCard } from './components/TaskCard';
 import { TaskEditor } from './components/TaskEditor';
 import { sampleTasks } from './data/sampleTasks';
 import { extractTaskCandidates } from './lib/capture';
+import {
+  buildQAExport,
+  buildQASummary,
+  buildQASummaryText,
+  createQAEvent,
+  createQAFeedback,
+  getDisplayMode,
+  initializeQAMode,
+  loadQAData,
+  removeQAQueryFlag,
+  saveQAData,
+  setQAModeEnabled
+} from './lib/qa';
 import { getNowRecommendation, scoreTask, sortTasksByRecommendation } from './lib/recommendation';
 import { loadAppData, saveAppData } from './lib/storage';
 import {
@@ -15,7 +29,18 @@ import {
   normalizeTasksForToday
 } from './lib/tasks';
 import { formatDateLabel, formatTimeLabel, getDueLabel, getGreetingCopy, plusMinutes, toDateKey } from './lib/time';
-import type { ActivityLog, AppView, CaptureCandidate, Task, TaskDraft, TaskFilter } from './types';
+import type {
+  ActivityLog,
+  AppView,
+  CaptureCandidate,
+  QAData,
+  QAEventMetadata,
+  QAEventName,
+  QARating,
+  Task,
+  TaskDraft,
+  TaskFilter
+} from './types';
 
 const COMPLETE_MESSAGES = ['Nice. One thing done.', 'That counts.', 'Good. Keep moving.'];
 
@@ -100,41 +125,17 @@ export default function App() {
   const [captureText, setCaptureText] = useState('');
   const [captureCandidates, setCaptureCandidates] = useState<CaptureCandidate[]>([]);
   const [toastMessage, setToastMessage] = useState('');
-
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setNow(new Date());
-    }, 60 * 1000);
-
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    setTasks((current) => normalizeTasksForToday(current, now));
-  }, [now]);
-
-  useEffect(() => {
-    saveAppData({
-      version: '0.1',
-      tasks,
-      logs
-    });
-  }, [tasks, logs]);
-
-  useEffect(() => {
-    if (!toastMessage) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => setToastMessage(''), 2400);
-    return () => window.clearTimeout(timer);
-  }, [toastMessage]);
+  const [qaMode, setQaMode] = useState(() => initializeQAMode());
+  const [qaData, setQaData] = useState<QAData>(() => loadQAData());
+  const qaOpenTrackedRef = useRef(false);
+  const lastNowTaskIdRef = useRef<string | null>(null);
 
   const greeting = getGreetingCopy(now);
   const recommendation = getNowRecommendation(tasks, now);
   const sortedTasks = sortTasksByRecommendation(tasks, now);
   const visibleTasks = getVisibleTasks(listFilter, tasks, now);
   const activeTasks = tasks.filter((task) => task.status === 'active');
+  const completedTaskCount = tasks.length - activeTasks.length;
   const completedToday = tasks
     .filter(
       (task) =>
@@ -159,6 +160,7 @@ export default function App() {
     )
     .slice(0, 3);
   const delaySummary = getDelaySummary(postponedTasks);
+  const qaSummary = buildQASummary(qaData.events, tasks);
 
   function showToast(message: string) {
     setToastMessage(message);
@@ -168,18 +170,247 @@ export default function App() {
     setLogs((current) => [createLog(type, when, taskId, meta), ...current].slice(0, 300));
   }
 
+  function buildQAMetadata(taskSnapshot: Task[], overrides: QAEventMetadata = {}) {
+    const activeTaskCount = taskSnapshot.filter((task) => task.status === 'active').length;
+
+    return {
+      taskCount: taskSnapshot.length,
+      activeTaskCount,
+      completedTaskCount: taskSnapshot.length - activeTaskCount,
+      displayMode: getDisplayMode(),
+      ...overrides
+    };
+  }
+
+  function trackQAEvent(
+    eventName: QAEventName,
+    overrides: QAEventMetadata = {},
+    timestamp = new Date(),
+    taskSnapshot = tasks
+  ) {
+    if (!qaMode) {
+      return;
+    }
+
+    setQaData((current) => ({
+      ...current,
+      events: [createQAEvent(eventName, timestamp, buildQAMetadata(taskSnapshot, overrides)), ...current.events].slice(
+        0,
+        800
+      )
+    }));
+  }
+
+  function trackTaskCreated(taskSnapshot: Task[], source: Task['source'], timestamp: Date) {
+    if (!qaMode) {
+      return;
+    }
+
+    setQaData((current) => {
+      const metadata = buildQAMetadata(taskSnapshot, { source });
+      const nextEvents = [createQAEvent('task_created', timestamp, metadata)];
+
+      if (source === 'capture') {
+        nextEvents.unshift(
+          createQAEvent('capture_candidate_saved', timestamp, buildQAMetadata(taskSnapshot, {
+            source,
+            captureCandidateCount: 1
+          }))
+        );
+      }
+
+      if (!current.events.some((event) => event.eventName === 'first_task_created')) {
+        nextEvents.push(createQAEvent('first_task_created', timestamp, metadata));
+      }
+
+      return {
+        ...current,
+        events: [...nextEvents, ...current.events].slice(0, 800)
+      };
+    });
+  }
+
+  async function copyQASummary() {
+    const summaryText = buildQASummaryText(qaSummary, qaData.feedback);
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(summaryText);
+        showToast('QA summary copied.');
+        return;
+      }
+    } catch {
+      // Fall through to manual copy fallback.
+    }
+
+    const helper = document.createElement('textarea');
+    helper.value = summaryText;
+    helper.setAttribute('readonly', 'true');
+    helper.style.position = 'absolute';
+    helper.style.left = '-9999px';
+    document.body.appendChild(helper);
+    helper.select();
+
+    const success = document.execCommand('copy');
+    document.body.removeChild(helper);
+    showToast(success ? 'QA summary copied.' : 'Copy failed. Try Download QA JSON.');
+  }
+
+  function downloadQAJson() {
+    const payload = buildQAExport(qaData, qaSummary);
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `whatsnext-founder-qa-${toDateKey(new Date())}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    showToast('QA JSON downloaded.');
+  }
+
+  function clearQALog() {
+    if (!window.confirm('Clear the local QA event log and notes?')) {
+      return;
+    }
+
+    setQaData({
+      events: [],
+      feedback: []
+    });
+    showToast('QA log cleared.');
+  }
+
+  function disableQAMode() {
+    setQAModeEnabled(false);
+    removeQAQueryFlag();
+    setQaMode(false);
+    showToast('QA mode disabled.');
+  }
+
+  function saveQANote(note: string, rating: QARating | '') {
+    const stamp = new Date();
+    const feedback = createQAFeedback(note, rating, stamp);
+
+    setQaData((current) => ({
+      ...current,
+      feedback: [feedback, ...current.feedback].slice(0, 100)
+    }));
+    showToast('QA note saved.');
+  }
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setNow(new Date());
+    }, 60 * 1000);
+
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    setTasks((current) => normalizeTasksForToday(current, now));
+  }, [now]);
+
+  useEffect(() => {
+    saveAppData({
+      version: '0.1',
+      tasks,
+      logs
+    });
+  }, [tasks, logs]);
+
+  useEffect(() => {
+    saveQAData(qaData);
+  }, [qaData]);
+
+  useEffect(() => {
+    if (!toastMessage) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => setToastMessage(''), 2400);
+    return () => window.clearTimeout(timer);
+  }, [toastMessage]);
+
+  useEffect(() => {
+    if (!qaMode || qaOpenTrackedRef.current) {
+      return;
+    }
+
+    qaOpenTrackedRef.current = true;
+
+    const stamp = new Date();
+    const displayMode = getDisplayMode();
+    const metadata = buildQAMetadata(tasks, { displayMode });
+    const openEvents = [createQAEvent('app_open', stamp, metadata)];
+
+    if (displayMode === 'standalone') {
+      openEvents.unshift(createQAEvent('standalone_open', stamp, metadata));
+    }
+
+    setQaData((current) => ({
+      ...current,
+      events: [...openEvents, ...current.events].slice(0, 800)
+    }));
+  }, [qaMode, tasks]);
+
+  useEffect(() => {
+    if (!qaMode) {
+      return;
+    }
+
+    if (activeView === 'capture') {
+      trackQAEvent('capture_opened');
+    }
+
+    if (activeView === 'settings') {
+      trackQAEvent('settings_opened');
+    }
+  }, [activeView, qaMode]);
+
+  useEffect(() => {
+    if (!qaMode || activeView !== 'today') {
+      return;
+    }
+
+    const currentTaskId = recommendation.task?.id ?? null;
+
+    if (!currentTaskId) {
+      lastNowTaskIdRef.current = null;
+      return;
+    }
+
+    if (lastNowTaskIdRef.current === currentTaskId) {
+      return;
+    }
+
+    if (lastNowTaskIdRef.current) {
+      trackQAEvent('now_card_changed', {
+        previousNowTaskId: lastNowTaskIdRef.current,
+        nowTaskId: currentTaskId
+      });
+    }
+
+    trackQAEvent('now_card_viewed', {
+      nowTaskId: currentTaskId
+    });
+    lastNowTaskIdRef.current = currentTaskId;
+  }, [activeView, qaMode, recommendation.task?.id]);
+
   function addTask(draft: TaskDraft, source: Task['source'] = 'manual') {
     const stamp = new Date();
     const task = createTaskFromDraft(draft, stamp, source);
+    const nextTasks = [task, ...tasks];
 
     setTasks((current) => [task, ...current]);
     pushLog(source === 'capture' ? 'captured' : 'created', stamp, task.id);
+    trackTaskCreated(nextTasks, source, stamp);
     setActiveView('today');
     showToast(source === 'capture' ? 'Task added.' : 'Added. I picked your next task.');
   }
 
   function updateTask(taskId: string, draft: TaskDraft) {
     const stamp = new Date();
+
     setTasks((current) =>
       current.map((task) =>
         task.id === taskId
@@ -216,6 +447,7 @@ export default function App() {
 
     setTasks(updatedTasks);
     pushLog('completed', stamp, taskId);
+    trackQAEvent('now_card_done', { nowTaskId: taskId }, stamp, updatedTasks);
     showToast(getCompleteMessage(stamp, nextTask?.title));
   }
 
@@ -233,37 +465,39 @@ export default function App() {
 
   function snoozeTask(taskId: string) {
     const stamp = new Date();
-    setTasks((current) =>
-      current.map((task) =>
-        task.id === taskId
-          ? applyFeedback(task, stamp, 'snooze', {
-              snoozeCount: task.snoozeCount + 1,
-              snoozeUntil: plusMinutes(stamp, 10).toISOString(),
-              excludedToday: false,
-              excludedOnDate: undefined
-            })
-          : task
-      )
+    const updatedTasks = tasks.map((task) =>
+      task.id === taskId
+        ? applyFeedback(task, stamp, 'snooze', {
+            snoozeCount: task.snoozeCount + 1,
+            snoozeUntil: plusMinutes(stamp, 10).toISOString(),
+            excludedToday: false,
+            excludedOnDate: undefined
+          })
+        : task
     );
+
+    setTasks(updatedTasks);
     pushLog('snoozed', stamp, taskId);
-    showToast("Okay. I'll bring it back later.");
+    trackQAEvent('now_card_later', { nowTaskId: taskId }, stamp, updatedTasks);
+    showToast('Parked for now.');
   }
 
   function skipToday(taskId: string) {
     const stamp = new Date();
-    setTasks((current) =>
-      current.map((task) =>
-        task.id === taskId
-          ? applyFeedback(task, stamp, 'skipToday', {
-              excludedToday: true,
-              excludedOnDate: toDateKey(stamp),
-              snoozeUntil: undefined
-            })
-          : task
-      )
+    const updatedTasks = tasks.map((task) =>
+      task.id === taskId
+        ? applyFeedback(task, stamp, 'skipToday', {
+            excludedToday: true,
+            excludedOnDate: toDateKey(stamp),
+            snoozeUntil: undefined
+          })
+        : task
     );
+
+    setTasks(updatedTasks);
     pushLog('excludedToday', stamp, taskId);
-    showToast("Okay. I'll leave it out for today.");
+    trackQAEvent('now_card_not_today', { nowTaskId: taskId }, stamp, updatedTasks);
+    showToast('Hidden for today.');
   }
 
   function restoreSamples() {
@@ -272,8 +506,10 @@ export default function App() {
     }
 
     const stamp = new Date();
-    setTasks(sampleTasks(stamp));
+    const restoredTasks = sampleTasks(stamp);
+    setTasks(restoredTasks);
     setLogs([createLog('restoredSamples', stamp)]);
+    trackQAEvent('sample_tasks_restored', {}, stamp, restoredTasks);
     setActiveView('today');
     showToast('Sample tasks restored.');
   }
@@ -283,10 +519,12 @@ export default function App() {
       return;
     }
 
+    const stamp = new Date();
     setTasks([]);
     setLogs([]);
     setCaptureText('');
     setCaptureCandidates([]);
+    trackQAEvent('data_reset', {}, stamp, []);
     setActiveView('today');
     showToast('All local data cleared.');
   }
@@ -294,6 +532,10 @@ export default function App() {
   function parseCaptureText() {
     const candidates = extractTaskCandidates(captureText);
     setCaptureCandidates(candidates);
+
+    if (captureText.trim()) {
+      trackQAEvent('capture_pasted', { captureCandidateCount: candidates.length });
+    }
 
     if (candidates.length === 0) {
       showToast('No clear tasks yet. Try pasting shorter lines.');
@@ -468,7 +710,7 @@ export default function App() {
           ) : (
             <div className="empty-state">
               <h3>No tasks in this view.</h3>
-                <p>Add one task and I'll pick what to do next.</p>
+              <p>Add one task and I'll pick what to do next.</p>
             </div>
           )}
         </div>
@@ -500,7 +742,7 @@ export default function App() {
           <button type="button" className="primary-button" onClick={parseCaptureText}>
             Suggest tasks
           </button>
-          <p className="subcopy">We do not read your messages automatically.</p>
+          <p className="subcopy">We only use what you paste here.</p>
         </section>
 
         <section className="panel panel--quiet">
@@ -547,7 +789,9 @@ export default function App() {
                     <div className="meta-row">
                       <span>{candidate.durationMinutes} min</span>
                       {candidate.due !== 'none' ? <span>{getDueLabel(candidate.due)}</span> : null}
-                      {candidate.preferredTime !== 'anytime' ? <span>{BEST_TIME_LABEL[candidate.preferredTime]}</span> : null}
+                      {candidate.preferredTime !== 'anytime' ? (
+                        <span>{BEST_TIME_LABEL[candidate.preferredTime]}</span>
+                      ) : null}
                     </div>
                     <p className="task-card__memo">{candidate.rawText}</p>
                   </div>
@@ -597,6 +841,18 @@ export default function App() {
           <h2>Home Screen test</h2>
           <p>Add What's Next to your iPhone Home Screen and use it for three days before deciding on native iOS.</p>
         </section>
+
+        {qaMode ? (
+          <FounderQAPanel
+            summary={qaSummary}
+            feedback={qaData.feedback}
+            onCopySummary={copyQASummary}
+            onDownloadJson={downloadQAJson}
+            onClearLog={clearQALog}
+            onDisable={disableQAMode}
+            onSubmitFeedback={saveQANote}
+          />
+        ) : null}
 
         <section className="panel panel--quiet">
           <h2>Data</h2>
