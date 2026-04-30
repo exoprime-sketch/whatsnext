@@ -1,12 +1,12 @@
 {
-  "name": "What's Next / 오늘하나",
-  "short_name": "오늘하나",
+  "name": "What's Next",
+  "short_name": "What's Next",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#f8f2e7",
-  "theme_color": "#f6efe4",
-  "description": "지금 해야 할 일 하나를 추천해주는 개인 하루 비서 앱",
+  "background_color": "#101214",
+  "theme_color": "#101214",
+  "description": "A decision-reducing daily planner that tells you one thing to do now.",
   "icons": [
     {
       "src": "./icon-192.png",

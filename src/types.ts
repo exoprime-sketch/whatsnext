@@ -10,7 +10,6 @@ export type AppView =
   | 'add'
   | 'list'
   | 'capture'
-  | 'history'
   | 'settings';
 export type TaskFilter = 'all' | 'today' | 'completed' | 'postponed';
 

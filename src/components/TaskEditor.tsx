@@ -4,21 +4,21 @@ import { DEFAULT_TASK_DRAFT } from '../lib/tasks';
 
 const DURATION_OPTIONS: TaskDraft['durationMinutes'][] = [5, 10, 15, 30, 60];
 const IMPORTANCE_OPTIONS: Array<{ value: TaskDraft['importance']; label: string }> = [
-  { value: 'low', label: '낮음' },
-  { value: 'medium', label: '보통' },
-  { value: 'high', label: '높음' }
+  { value: 'low', label: 'Low' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'high', label: 'High' }
 ];
 const DUE_OPTIONS: Array<{ value: TaskDraft['due']; label: string }> = [
-  { value: 'today', label: '오늘' },
-  { value: 'tomorrow', label: '내일' },
-  { value: 'thisWeek', label: '이번 주' },
-  { value: 'none', label: '없음' }
+  { value: 'today', label: 'Today' },
+  { value: 'tomorrow', label: 'Tomorrow' },
+  { value: 'thisWeek', label: 'This week' },
+  { value: 'none', label: 'No due date' }
 ];
 const TIME_OPTIONS: Array<{ value: TaskDraft['preferredTime']; label: string }> = [
-  { value: 'morning', label: '아침' },
-  { value: 'afternoon', label: '오후' },
-  { value: 'evening', label: '저녁' },
-  { value: 'anytime', label: '상관없음' }
+  { value: 'morning', label: 'Morning' },
+  { value: 'afternoon', label: 'Afternoon' },
+  { value: 'evening', label: 'Evening' },
+  { value: 'anytime', label: 'Any time' }
 ];
 
 interface TaskEditorProps {
@@ -92,36 +92,36 @@ export function TaskEditor({
         </div>
         {onCancel ? (
           <button type="button" className="ghost-button" onClick={onCancel}>
-            닫기
+            Close
           </button>
         ) : null}
       </div>
 
       <label className="field">
-        <span>할 일 제목</span>
+        <span>Task</span>
         <input
           autoFocus
           value={draft.title}
           onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))}
-          placeholder="예: 팀장님께 회의자료 보내기"
+          placeholder="Reply to one important message"
         />
       </label>
 
       <label className="field">
-        <span>메모</span>
+        <span>Notes (optional)</span>
         <textarea
           rows={3}
           value={draft.memo}
           onChange={(event) => setDraft((current) => ({ ...current, memo: event.target.value }))}
-          placeholder="선택 사항"
+          placeholder="Add a little context if it helps"
         />
       </label>
 
       <div className="field">
-        <span>예상 소요시간</span>
+        <span>Time</span>
         <ChipGroup
           value={draft.durationMinutes}
-          options={DURATION_OPTIONS.map((option) => ({ value: option, label: `${option}분` }))}
+          options={DURATION_OPTIONS.map((option) => ({ value: option, label: `${option} min` }))}
           onChange={(value) =>
             setDraft((current) => ({
               ...current,
@@ -132,7 +132,7 @@ export function TaskEditor({
       </div>
 
       <div className="field">
-        <span>중요도</span>
+        <span>Importance</span>
         <ChipGroup
           value={draft.importance}
           options={IMPORTANCE_OPTIONS}
@@ -146,7 +146,7 @@ export function TaskEditor({
       </div>
 
       <div className="field">
-        <span>마감</span>
+        <span>Due</span>
         <ChipGroup
           value={draft.due}
           options={DUE_OPTIONS}
@@ -160,7 +160,7 @@ export function TaskEditor({
       </div>
 
       <div className="field">
-        <span>선호 시간대</span>
+        <span>Best time</span>
         <ChipGroup
           value={draft.preferredTime}
           options={TIME_OPTIONS}
@@ -176,7 +176,7 @@ export function TaskEditor({
       <button type="submit" className="primary-button" disabled={!draft.title.trim()}>
         {submitLabel}
       </button>
-      <p className="subcopy">제목만 입력해도 바로 저장됩니다. 나머지는 기본값으로 채워둘게요.</p>
+      <p className="subcopy">Title is enough. Everything else can stay on sensible defaults.</p>
     </form>
   );
 }

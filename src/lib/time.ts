@@ -1,12 +1,13 @@
 import type { DueBucket, TimeBand } from '../types';
 
-const DATE_FORMATTER = new Intl.DateTimeFormat('ko-KR', {
-  month: 'long',
+const DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  weekday: 'short',
+  month: 'short',
   day: 'numeric',
-  weekday: 'long'
+  year: 'numeric'
 });
 
-const TIME_FORMATTER = new Intl.DateTimeFormat('ko-KR', {
+const TIME_FORMATTER = new Intl.DateTimeFormat('en-US', {
   hour: 'numeric',
   minute: '2-digit'
 });
@@ -47,13 +48,13 @@ export function getTimeBand(date: Date): TimeBand {
 export function getTimeBandLabel(timeBand: TimeBand) {
   switch (timeBand) {
     case 'morning':
-      return '아침';
+      return 'Morning';
     case 'afternoon':
-      return '오후';
+      return 'Afternoon';
     case 'evening':
-      return '저녁';
+      return 'Evening';
     case 'night':
-      return '밤';
+      return 'Late';
   }
 }
 
@@ -61,27 +62,27 @@ export function getGreetingCopy(date: Date) {
   switch (getTimeBand(date)) {
     case 'morning':
       return {
-        greeting: '좋은 아침이에요',
-        status: '머리가 맑을 때 하나 먼저 끝내볼까요?',
-        tagline: '오늘 하나만 먼저 해볼까요?'
+        greeting: 'Fresh morning',
+        status: 'Start with one clear task before the day gets noisy.',
+        tagline: 'Start with one thing.'
       };
     case 'afternoon':
       return {
-        greeting: '오후 흐름이 올라왔어요',
-        status: '생각은 줄이고, 지금 할 일 하나만 남겼어요.',
-        tagline: '지금은 이것부터 하면 됩니다.'
+        greeting: 'Back in motion',
+        status: 'Pick one useful thing and keep moving.',
+        tagline: 'Stop deciding. Start doing.'
       };
     case 'evening':
       return {
-        greeting: '저녁엔 가볍게 정리하는 편이 좋아요',
-        status: '부담 적은 일부터 마무리해두기 좋은 시간이에요.',
-        tagline: '긴 계획표 대신 지금 할 일 하나.'
+        greeting: 'Close a loop',
+        status: 'A smaller task is usually the best way to end the day well.',
+        tagline: 'Not another todo list. Just your next move.'
       };
     case 'night':
       return {
-        greeting: '늦은 시간에는 짧은 일이 잘 맞아요',
-        status: '오늘을 닫기 전에 가볍게 하나만 처리해볼까요?',
-        tagline: '작게라도 앞으로 가는 쪽으로 골랐어요.'
+        greeting: 'Keep it light',
+        status: 'Choose something small enough to finish tonight.',
+        tagline: 'One thing to do now.'
       };
   }
 }
@@ -89,13 +90,13 @@ export function getGreetingCopy(date: Date) {
 export function getDueLabel(due: DueBucket) {
   switch (due) {
     case 'today':
-      return '오늘';
+      return 'Today';
     case 'tomorrow':
-      return '내일';
+      return 'Tomorrow';
     case 'thisWeek':
-      return '이번 주';
+      return 'This week';
     case 'none':
-      return '마감 없음';
+      return 'No due date';
   }
 }
 

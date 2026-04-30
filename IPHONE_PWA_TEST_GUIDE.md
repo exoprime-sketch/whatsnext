@@ -1,132 +1,143 @@
 # iPhone PWA Test Guide
 
-## 목적
+## Purpose
 
-Apple Developer 비용을 쓰기 전에 `오늘하나`를 iPhone Safari 홈화면 앱처럼 설치해서, 실제 사용 흐름과 체감 UX를 먼저 검증합니다.
+Use the PWA like a real iPhone product before paying for Apple Developer enrollment.
 
-## 준비물
+The question is not "Does it technically run?"
+The question is:
 
-- 배포 가능한 GitHub 저장소
-- Vercel 계정 또는 GitHub Pages 저장소 설정 권한
-- iPhone 14 Pro
+**Does What's Next reduce deciding enough that you would keep it on your home screen?**
+
+## What You Need
+
+- The GitHub repository
+- A Vercel account or GitHub Pages setup
+- An iPhone 14 Pro
 - Safari
 
-## Vercel 배포 방법
+## Recommended Deployment: Vercel
 
-Vercel을 우선 추천합니다. 루트 경로 배포와 Vite 조합이 가장 단순하고, iPhone 홈화면 테스트도 바로 할 수 있습니다.
+Use Vercel first.
 
-1. 프로젝트를 GitHub에 푸시합니다.
-2. Vercel에서 `Add New Project`를 선택합니다.
-3. 저장소를 import 합니다.
-4. 아래 값이 맞는지 확인합니다.
+Settings:
 
 - Framework Preset: `Vite`
 - Build Command: `npm run build`
 - Output Directory: `dist`
 
-5. Deploy를 실행합니다.
-6. 배포 완료 후 HTTPS URL을 받습니다.
+Steps:
 
-## GitHub Pages 배포 방법
+1. Push the project to GitHub.
+2. Import the repo into Vercel.
+3. Confirm the build settings above.
+4. Deploy.
+5. Open the HTTPS URL on iPhone Safari.
 
-GitHub Pages는 선택지로는 가능하지만, Vercel보다 base path를 더 신경 써야 합니다.
+## Alternative Deployment: GitHub Pages
 
-현재 프로젝트는 `VITE_BASE_PATH` 환경변수로 Vite base를 바꿀 수 있습니다.
+GitHub Pages is valid, but it is a little more fragile because it usually runs under a subpath.
 
-예시:
+If your Pages URL is `https://<account>.github.io/<repo>/`, build with:
 
 ```bash
 VITE_BASE_PATH=/whatsnext/ npm run build
 ```
 
-설명:
+Use this only if you specifically want Pages. For fast iteration, Vercel is still the better choice.
 
-- `whatsnext`는 GitHub Pages의 repository name 예시입니다.
-- 저장소 이름이 다르면 base path도 같이 바꿔야 합니다.
-- `manifest`, `service worker`, `apple-touch-icon`은 subpath 배포도 고려해 상대 경로 또는 base-aware 경로로 맞춰두었습니다.
+## Add To Home Screen On iPhone
 
-Vercel을 우선 추천하는 이유:
+1. Open the deployed URL in Safari.
+2. Tap the Share button.
+3. Choose `Add to Home Screen`.
+4. Confirm the icon name shows `What's Next`.
+5. Launch the app from the Home Screen icon.
 
-- root 배포가 기본이라 설정이 단순합니다.
-- iPhone 홈화면 테스트까지 가는 시간이 더 짧습니다.
-- 재배포와 확인이 빠릅니다.
+## What To Check Immediately
 
-## iPhone 홈화면 추가 방법
+- Does the icon look clean on the home screen?
+- Does it open in standalone mode?
+- Does the first screen explain itself in 5 seconds?
+- Does the Now card feel like the product, not just another task list?
 
-1. iPhone Safari에서 배포 URL을 엽니다.
-2. 하단 공유 버튼을 누릅니다.
-3. `홈 화면에 추가`를 선택합니다.
-4. 아이콘 이름이 `오늘하나`로 보이는지 확인합니다.
-5. 추가 후 홈 화면의 아이콘을 탭해 다시 실행합니다.
+## 3-Day Test Plan
 
-확인 포인트:
+### Day 1
 
-- Safari 주소창 없이 standalone처럼 열리는지
-- 배경색과 아이콘이 어색하지 않은지
-- 홈화면에서 앱처럼 다시 열 수 있는지
+- Add 5 real tasks
+- Use the Now Card once
+- Add the app to Home Screen
 
-## 테스트 체크리스트
+### Day 2
 
-### 설치 직후
+- Open from Home Screen
+- Complete or delay at least one task
+- Try Capture with one real note
 
-- 홈 화면 아이콘이 깨지지 않는지
-- 앱 이름이 너무 길게 잘리지 않는지
-- standalone 실행이 되는지
-- 첫 화면이 빈 상태가 아닌지
+### Day 3
 
-### 기본 흐름
+- Ask: did this reduce deciding?
+- Ask: would I keep this on my home screen?
+- Ask: is native iOS worth building?
 
-- Today 화면에서 Now Card가 바로 보이는지
-- 추천 이유가 너무 길지 않은지
-- `완료`, `10분 뒤`, `오늘 말고`, `별로예요` 버튼이 엄지로 누르기 쉬운지
-- 빠른 할 일 추가가 10초 안에 끝나는지
+## Test Checklist
 
-### 입력 흐름
+### Core Value
 
-- Add Task에서 제목만 입력해도 저장이 잘 되는지
-- 저장 후 Today 화면으로 돌아와 Now Card가 바뀌는지
-- Capture에서 문장을 붙여넣고 후보를 저장할 수 있는지
+- The first screen clearly says what to do now
+- The recommendation feels reasonable
+- Secondary information stays quiet
+- The product feels calmer than a normal to-do app
 
-### 지속 사용 흐름
+### Daily Use
 
-- 새로고침하거나 앱을 다시 열어도 데이터가 유지되는지
-- 하루 2~3번 열었을 때 추천 흐름이 자연스러운지
-- Settings에서 전체 데이터 삭제가 실제로 동작하는지
+- Adding a task is fast
+- Done / Later / Not today are enough to keep moving
+- Opening the app on a new day still feels fresh
+- Delayed tasks are handled cleanly
 
-### 2~3일 실제 사용 체크
+### Capture
 
-- 첫날: 설치 후 바로 첫 할 일을 넣고 추천이 납득되는지
-- 둘째 날: 다시 열었을 때 홈화면 아이콘을 계속 누르고 싶어지는지
-- 셋째 날: 미룸/완료 기록이 쌓였을 때 추천이 더 자연스러워지는지
-- 반복 사용 중 텍스트가 잘리거나 버튼이 답답하지 않은지
-- 홈화면 앱처럼 써도 큰 불편이 없는지
+- Pasting messy notes creates usable task suggestions
+- The app does not overclaim AI
+- The privacy message is clear: only pasted text is used
 
-## PWA에서 확인 가능한 것
+### Trust
 
-- 모바일 레이아웃 품질
-- 홈화면 설치 경험
-- standalone 실행 경험
-- Today / Now Card / Add Task / Capture / Settings 기본 흐름
-- localStorage 기반 데이터 유지
-- 기본 service worker 등록 여부
-- iPhone Safari에서의 실제 텍스트 크기와 터치감
+- Your data persists between opens
+- Reset data works
+- The product feels local-first and lightweight
 
-## PWA로 확인 불가능한 것
+## What You Can Validate In The PWA
 
-- WidgetKit 위젯
-- iOS 네이티브 알림 권한 UX
-- App Store 배포 패키지 품질
-- SwiftUI 네이티브 성능과 전환 감각
-- App Group 공유 동작
-- TestFlight 설치 흐름
+- Mobile layout quality
+- Home screen install experience
+- Standalone app feel
+- Now card clarity
+- Task entry speed
+- Capture usefulness
+- Local persistence
+- Whether the product deserves repeated opens
 
-## 네이티브 iOS 테스트로 넘어갈 조건
+## What You Cannot Validate In The PWA
 
-아래 조건이 만족되면 Apple Developer 등록과 네이티브 iOS 테스트로 넘어갈 근거가 충분합니다.
+- Native iOS widgets
+- Native notification permission flow
+- TestFlight install experience
+- App Store packaging quality
+- Native SwiftUI transitions and performance details
 
-- iPhone 홈화면에서 2~3일 실제 사용해도 다시 열고 싶은 흐름이 있다
-- Now Card 추천이 최소한 “쓸 만하다”는 판단이 든다
-- Add Task와 Capture가 막히지 않는다
-- 홈화면 아이콘과 standalone 실행 경험이 어색하지 않다
-- 빈 화면, 저장 유실, 주요 버튼 오동작이 없다
-- PWA 한계 때문에 막히는 지점이 명확해진다
+## When To Move To Native iOS
+
+Move to native only if the PWA test shows clear product value.
+
+Good signals:
+
+- You open it repeatedly without forcing yourself
+- The Now card reduces friction instead of creating more management work
+- You would keep it on your home screen
+- Capture is useful enough to use again
+- The product feels meaningfully different from a generic to-do list
+
+If those signals are weak, keep refining the PWA before spending money on Apple Developer enrollment.

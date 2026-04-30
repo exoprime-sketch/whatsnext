@@ -1,5 +1,5 @@
 import type { RecommendationResult, Task, TimeBand } from '../types';
-import { getTimeBand, getTimeBandLabel, toDateKey } from './time';
+import { getTimeBand, toDateKey } from './time';
 
 const IMPORTANCE_SCORE = {
   high: 30,
@@ -28,6 +28,27 @@ function isDurationFit(durationMinutes: Task['durationMinutes'], timeBand: TimeB
   }
 
   return durationMinutes <= 30;
+}
+
+function getTimeFitReason(timeBand: TimeBand) {
+  switch (timeBand) {
+    case 'morning':
+      return 'This is a good first task for the morning.';
+    case 'afternoon':
+      return 'This fits the middle of the day well.';
+    case 'evening':
+      return 'This is a good evening task.';
+    case 'night':
+      return 'This is light enough for late hours.';
+  }
+}
+
+function getDurationReason(durationMinutes: Task['durationMinutes']) {
+  if (durationMinutes <= 15) {
+    return 'It fits a short work session.';
+  }
+
+  return 'Small enough to start without blocking your whole hour.';
 }
 
 function wasRecentlyRejected(task: Task, now: Date) {
@@ -61,36 +82,42 @@ export function scoreTask(task: Task, now: Date) {
   score += DUE_SCORE[task.due];
 
   if (task.due === 'today') {
-    reasons.push('오늘 마감인 작업입니다.');
+    reasons.push('This is due today.');
   } else if (task.due === 'tomorrow') {
-    reasons.push('내일 전에 손대두면 훨씬 편해집니다.');
+    reasons.push('Getting ahead of tomorrow will make later easier.');
   } else if (task.due === 'thisWeek') {
-    reasons.push('이번 주 안에 끝내야 해서 미리 건드리는 편이 좋습니다.');
+    reasons.push('This is worth touching before the week gets crowded.');
   }
 
   if (task.importance === 'high') {
-    reasons.push('중요도가 높게 표시된 일입니다.');
-  } else if (task.importance === 'medium') {
-    reasons.push('오늘 흐름 안에서 챙겨두기 좋은 우선순위입니다.');
+    reasons.push('This looks worth clearing early.');
   }
 
   if (task.preferredTime === currentBand) {
     score += 15;
-    reasons.push(`${getTimeBandLabel(currentBand)}에 하기로 둔 일이라 지금 흐름과 맞습니다.`);
+    reasons.push(getTimeFitReason(currentBand));
   }
 
   if (isDurationFit(task.durationMinutes, currentBand)) {
     score += 10;
-    reasons.push(`${task.durationMinutes}분이면 지금 시작하기 부담이 적습니다.`);
+    reasons.push(getDurationReason(task.durationMinutes));
   }
 
   if (task.snoozeCount > 0) {
     score += task.snoozeCount * 5;
-    reasons.push(`최근 ${task.snoozeCount}번 미뤄서 더 늦기 전에 처리하는 편이 좋습니다.`);
+    reasons.push(
+      task.snoozeCount === 1
+        ? "You've delayed this once already."
+        : `You've delayed this ${task.snoozeCount} times already.`
+    );
   }
 
   if (wasRecentlyRejected(task, now)) {
     score -= 25;
+  }
+
+  if (reasons.length === 0) {
+    reasons.push('Small enough to start now.');
   }
 
   return { score, reasons };

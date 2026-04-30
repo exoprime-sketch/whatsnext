@@ -2,16 +2,16 @@ import type { Task } from '../types';
 import { getDueLabel } from '../lib/time';
 
 const IMPORTANCE_LABEL = {
-  high: '높음',
-  medium: '보통',
-  low: '낮음'
+  high: 'High priority',
+  medium: 'Medium priority',
+  low: 'Low priority'
 } as const;
 
 const TIME_LABEL = {
-  morning: '아침',
-  afternoon: '오후',
-  evening: '저녁',
-  anytime: '상관없음'
+  morning: 'Best in the morning',
+  afternoon: 'Best in the afternoon',
+  evening: 'Best in the evening',
+  anytime: 'Any time'
 } as const;
 
 interface TaskCardProps {
@@ -29,6 +29,22 @@ export function TaskCard({
   onEdit,
   onDelete
 }: TaskCardProps) {
+  const metaItems = [`${task.durationMinutes} min`];
+
+  if (task.due !== 'none') {
+    metaItems.push(getDueLabel(task.due));
+  }
+
+  if (task.importance !== 'low') {
+    metaItems.push(IMPORTANCE_LABEL[task.importance]);
+  }
+
+  if (task.preferredTime !== 'anytime') {
+    metaItems.push(TIME_LABEL[task.preferredTime]);
+  }
+
+  const delayedCount = task.snoozeCount + task.negativeFeedbackCount;
+
   return (
     <article className="task-card">
       <div className="task-card__body">
@@ -36,37 +52,36 @@ export function TaskCard({
           <h3>{task.title}</h3>
           {showStatus ? (
             <span className={`status-pill ${task.status === 'completed' ? 'is-done' : ''}`}>
-              {task.status === 'completed' ? '완료' : '진행 중'}
+              {task.status === 'completed' ? 'Done' : 'Waiting'}
             </span>
           ) : null}
         </div>
         <div className="meta-row">
-          <span>{task.durationMinutes}분</span>
-          <span>{IMPORTANCE_LABEL[task.importance]}</span>
-          <span>{getDueLabel(task.due)}</span>
-          <span>{TIME_LABEL[task.preferredTime]}</span>
+          {metaItems.map((item) => (
+            <span key={item}>{item}</span>
+          ))}
         </div>
         {task.memo ? <p className="task-card__memo">{task.memo}</p> : null}
-        {task.snoozeCount > 0 || task.negativeFeedbackCount > 0 ? (
+        {delayedCount > 0 ? (
           <p className="task-card__insight">
-            미룸 {task.snoozeCount}회 · 별로예요 {task.negativeFeedbackCount}회
+            Delayed {delayedCount} {delayedCount === 1 ? 'time' : 'times'}
           </p>
         ) : null}
       </div>
       <div className="task-card__actions">
         {task.status === 'active' && onComplete ? (
           <button type="button" className="tiny-button primary" onClick={() => onComplete(task.id)}>
-            완료
+            Done
           </button>
         ) : null}
         {onEdit ? (
           <button type="button" className="tiny-button" onClick={() => onEdit(task)}>
-            수정
+            Edit
           </button>
         ) : null}
         {onDelete ? (
           <button type="button" className="tiny-button danger" onClick={() => onDelete(task.id)}>
-            삭제
+            Delete
           </button>
         ) : null}
       </div>

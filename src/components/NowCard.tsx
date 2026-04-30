@@ -7,7 +7,6 @@ interface NowCardProps {
   onComplete: (taskId: string) => void;
   onSnooze: (taskId: string) => void;
   onSkipToday: (taskId: string) => void;
-  onNegative: (taskId: string) => void;
   onQuickAdd: () => void;
 }
 
@@ -17,17 +16,16 @@ export function NowCard({
   onComplete,
   onSnooze,
   onSkipToday,
-  onNegative,
   onQuickAdd
 }: NowCardProps) {
   if (!task) {
     return (
       <section className="now-card empty">
-        <div className="eyebrow">지금은 비어 있어요</div>
-        <h2>지금 추천할 일이 없습니다.</h2>
-        <p>오늘 할 일을 하나 추가해보세요. 바로 지금 할 일 하나로 정리해둘게요.</p>
+        <div className="eyebrow">Now</div>
+        <h2>Nothing to decide right now.</h2>
+        <p>Add one task and I'll pick what to do next. Start with one thing.</p>
         <button type="button" className="primary-button" onClick={onQuickAdd}>
-          할 일 추가하기
+          Add a task
         </button>
       </section>
     );
@@ -35,34 +33,36 @@ export function NowCard({
 
   return (
     <section className="now-card">
-      <div className="eyebrow">지금은 이것부터</div>
+      <div className="eyebrow">Now</div>
       <h2>{task.title}</h2>
+      {reasons[0] ? <p className="now-card__lead">{reasons[0]}</p> : null}
       <div className="now-card__meta">
-        <span>{task.durationMinutes}분</span>
-        <span>{getDueLabel(task.due)}</span>
+        <span>{task.durationMinutes} min</span>
+        {task.due !== 'none' ? <span>{getDueLabel(task.due)}</span> : null}
+        {task.importance === 'high' ? <span>High priority</span> : null}
       </div>
       {task.memo ? <p className="now-card__memo">{task.memo}</p> : null}
-      <div className="reason-list">
-        {reasons.map((reason) => (
-          <div key={reason} className="reason-pill">
-            {reason}
-          </div>
-        ))}
-      </div>
-      <div className="now-card__actions">
+      {reasons.length > 1 ? (
+        <div className="reason-list">
+          {reasons.slice(1).map((reason) => (
+            <div key={reason} className="reason-pill">
+              {reason}
+            </div>
+          ))}
+        </div>
+      ) : null}
+      <div className="now-card__actions now-card__actions--three">
         <button type="button" className="primary-button" onClick={() => onComplete(task.id)}>
-          완료
+          Done
         </button>
         <button type="button" className="secondary-button" onClick={() => onSnooze(task.id)}>
-          10분 뒤
+          Later
         </button>
         <button type="button" className="ghost-button" onClick={() => onSkipToday(task.id)}>
-          오늘 말고
-        </button>
-        <button type="button" className="ghost-button" onClick={() => onNegative(task.id)}>
-          별로예요
+          Not today
         </button>
       </div>
+      <p className="subcopy">Finish this and I'll keep the next one ready.</p>
     </section>
   );
 }
