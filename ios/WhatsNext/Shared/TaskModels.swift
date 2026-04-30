@@ -508,10 +508,14 @@ extension Date {
     var timeBand: TimeBand {
         let hour = Calendar.current.component(.hour, from: self)
         switch hour {
-        case 5..<12: .morning
-        case 12..<18: .afternoon
-        case 18..<24: .evening
-        default: .night
+        case 5..<12:
+            return TimeBand.morning
+        case 12..<18:
+            return TimeBand.afternoon
+        case 18..<24:
+            return TimeBand.evening
+        default:
+            return TimeBand.night
         }
     }
 }
