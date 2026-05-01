@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { AppHeader } from './components/AppHeader';
 import { BottomNav } from './components/BottomNav';
 import { CaptureCandidateCard } from './components/CaptureCandidateCard';
 import { FounderQAPanel } from './components/FounderQAPanel';
@@ -7,6 +8,7 @@ import { TaskCard } from './components/TaskCard';
 import { TaskEditor } from './components/TaskEditor';
 import { UpcomingPanel } from './components/UpcomingPanel';
 import { sampleTasks } from './data/sampleTasks';
+import { brand } from './lib/brand';
 import { canExportICS, copyEventDetails, downloadICS } from './lib/calendarExport';
 import { extractCaptureCandidates, refreshCaptureCandidate, SAMPLE_CAPTURE_TEXT } from './lib/capture';
 import {
@@ -1003,7 +1005,7 @@ export default function App() {
           <div>
             <div className="eyebrow">Upcoming</div>
             <h1>What might you miss?</h1>
-            <p>Today, tomorrow, and anything that still needs a date or time.</p>
+            <p>Today, tomorrow, or still unclear.</p>
           </div>
           <button type="button" className="ghost-button" onClick={() => setActiveView('capture')}>
             Capture more
@@ -1049,7 +1051,7 @@ export default function App() {
           <div>
             <div className="eyebrow">Tasks</div>
             <h1>Saved items</h1>
-            <p>Everything you saved from capture or quick add.</p>
+            <p>Saved follow-ups in one place.</p>
           </div>
           <div className="action-row">
             <button type="button" className="secondary-button" onClick={() => setManualEditorOpen(true)}>
@@ -1070,7 +1072,7 @@ export default function App() {
           <article className="summary-card summary-card--quiet">
             <div className="eyebrow">Events</div>
             <strong>{savedItemCounts.event}</strong>
-            <p>Calendar-ready items saved locally for now.</p>
+            <p>Ready to add to your calendar.</p>
           </article>
           <article className="summary-card summary-card--quiet">
             <div className="eyebrow">Reminders</div>
@@ -1186,9 +1188,7 @@ export default function App() {
     return (
       <section className="view">
         <header className="hero-card hero-card--capture hero-card--compact">
-          <div className="eyebrow">What's Next</div>
-          <h1>Stop retyping tasks and plans.</h1>
-          <p>Paste a message or meeting note. We&apos;ll find the follow-ups.</p>
+          <AppHeader title={brand.slogan} subtitle={brand.captureHelper} showBrand />
         </header>
 
         <section className="panel panel--capture">
@@ -1212,7 +1212,7 @@ export default function App() {
               Clear
             </button>
           </div>
-          <p className="subcopy">Only what you paste. No account.</p>
+          <p className="subcopy">{brand.privacyLine}</p>
         </section>
 
         <section className="panel panel--quiet">
@@ -1244,8 +1244,10 @@ export default function App() {
           <section className="panel panel--success">
             <div className="section-heading">
               <div>
-                <h2>Typing saved</h2>
-                <p>Saved. You don&apos;t have to retype it later.</p>
+                <h2>
+                  Saved {captureOutcome.savedCount} follow-up{captureOutcome.savedCount === 1 ? '' : 's'}.
+                </h2>
+                <p>You don&apos;t have to retype it later.</p>
               </div>
               <div className="action-row">
                 <button type="button" className="secondary-button" onClick={() => setActiveView('upcoming')}>
@@ -1263,21 +1265,17 @@ export default function App() {
               <article className="summary-card summary-card--quiet">
                 <div className="eyebrow">Calendar-ready</div>
                 <strong>{captureOutcome.calendarReadyCount}</strong>
-                <p>Ready for calendar file export.</p>
+                <p>Ready to add to your calendar.</p>
               </article>
               <article className="summary-card summary-card--quiet">
                 <div className="eyebrow">Needs review</div>
                 <strong>{captureOutcome.needsDateReviewCount + captureOutcome.needsTimeReviewCount}</strong>
-                <p>
-                  {captureOutcome.needsDateReviewCount} need date review, {captureOutcome.needsTimeReviewCount} need time review
-                </p>
+                <p>Review before you forget.</p>
               </article>
               <article className="summary-card summary-card--quiet">
                 <div className="eyebrow">Saved</div>
                 <strong>{captureOutcome.savedCount}</strong>
-                <p>
-                  {captureOutcome.savedTaskCount} tasks, {captureOutcome.savedEventCount} events, {captureOutcome.savedReminderCount} reminders
-                </p>
+                <p>{getCaptureOutcomeText(captureOutcome.manualEntriesAvoidedApprox)}</p>
               </article>
             </div>
           </section>
@@ -1336,7 +1334,7 @@ export default function App() {
           <div>
             <div className="eyebrow">Settings</div>
             <h1>Settings</h1>
-            <p>Local settings for your saved items.</p>
+            <p>Local-first privacy and data.</p>
           </div>
         </header>
 
@@ -1374,7 +1372,7 @@ export default function App() {
 
         <section className="panel panel--quiet">
           <h2>Version</h2>
-          <p>Version 0.1</p>
+          <p>Version {brand.version}</p>
         </section>
       </section>
     );
@@ -1409,7 +1407,7 @@ export default function App() {
           <div className="modal-sheet" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
             <TaskEditor
               title="Add manually"
-              description="Use this when there is nothing useful to capture."
+              description="Use this when nothing useful came out of capture."
               submitLabel="Save manual item"
               onSubmit={(draft) => addTask(draft)}
               onCancel={() => setManualEditorOpen(false)}
@@ -1424,7 +1422,7 @@ export default function App() {
             <TaskEditor
               initialValue={editingTask}
               title="Edit item"
-              description="Use this to confirm times, choose alarms, or make the export details clearer."
+              description="Tighten the details, then save."
               submitLabel="Save changes"
               onSubmit={(draft) => updateTask(editingTask.id, draft)}
               onCancel={() => setEditingTask(null)}

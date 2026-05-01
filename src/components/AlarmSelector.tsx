@@ -53,10 +53,10 @@ export function AlarmSelector({
       </div>
       <p className="subcopy">
         {canSelectTimedAlarm
-          ? `Current alarm: ${selectedLabel}.`
+          ? `Current: ${selectedLabel}.`
           : alarmNeedsReview
-            ? 'Confirm the date and time first, then choose an alarm.'
-            : 'Timed alarms become available once the date and time are clear.'}
+            ? 'Confirm the date and time first.'
+            : 'Add a clear time first for alarms.'}
       </p>
     </div>
   );

@@ -45,7 +45,7 @@ export function EventExportPanel({ item, onDownload, onCopy }: EventExportPanelP
           Copy details
         </button>
       </div>
-      <p className="subcopy">{exportReady ? 'Add the downloaded file to your calendar.' : 'Add to calendar manually.'}</p>
+      <p className="subcopy">{exportReady ? 'Add the file to your calendar.' : 'Add to calendar manually.'}</p>
     </section>
   );
 }

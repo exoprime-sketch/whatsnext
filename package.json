@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "ci:web": "npm run build",
+    "check:ui": "node ./scripts/ci/check-ui-readiness.mjs",
     "check:release": "node ./scripts/ci/check-release-readiness.mjs",
     "check:release:strict": "node ./scripts/ci/check-release-readiness.mjs --strict"
   },

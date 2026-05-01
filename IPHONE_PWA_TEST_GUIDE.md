@@ -60,6 +60,7 @@ This version should feel like:
 
 - Does `Capture` explain the product in 5 seconds?
 - Does the app feel useful before native iOS features exist?
+- Does the bottom navigation stay fixed while scrolling?
 - Is `Upcoming` easy to scan on iPhone?
 - Are `Download calendar file` and `Copy details` honest and usable?
 - Do `Needs date` and `Needs time` help rather than confuse?

@@ -4,9 +4,9 @@
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#f7f1e6",
-  "theme_color": "#f7f1e6",
-  "description": "Paste a message or meeting note. What's Next finds the follow-ups without retyping.",
+  "background_color": "#F7F4EF",
+  "theme_color": "#F7F4EF",
+  "description": "Stop retyping tasks and plans. Paste a message or meeting note and find the follow-ups.",
   "icons": [
     {
       "src": "./icon-192.png",

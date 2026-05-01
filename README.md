@@ -7,7 +7,7 @@ What's Next is an English-first, mobile-first PWA for one practical promise:
 Core lines:
 
 - `Capture the plan. Keep the reminder.`
-- `Messages in. Tasks, events, and reminders out.`
+- `Messages in. Follow-ups out.`
 
 The current product is no longer just a capture prototype. It is a small working PWA for turning pasted notes, messages, and meeting text into saved follow-ups you can review and act on today.
 
@@ -98,6 +98,19 @@ npm run dev
 ```bash
 npm run build
 ```
+
+## UI Readiness Check
+
+```bash
+npm run check:ui
+```
+
+This lightweight check looks for:
+
+- Korean characters in app-facing files
+- internal maker copy in the normal user UI
+- the fixed bottom navigation CSS contract
+- the correct manifest app name
 
 Vite production output directory: `dist`
 
