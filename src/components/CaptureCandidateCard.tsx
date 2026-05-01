@@ -1,18 +1,12 @@
 import { AlarmSelector } from './AlarmSelector';
 import { EventExportPanel } from './EventExportPanel';
 import { supportsAlarmSelection } from '../lib/tasks';
-import type { CaptureCandidate, ConfidenceLevel, ItemType } from '../types';
+import type { CaptureCandidate, ItemType } from '../types';
 
 const TYPE_LABEL: Record<ItemType, string> = {
   task: 'Task',
   event: 'Event',
   reminder: 'Reminder'
-};
-
-const CONFIDENCE_LABEL: Record<ConfidenceLevel, string> = {
-  high: 'High confidence',
-  medium: 'Medium confidence',
-  low: 'Low confidence'
 };
 
 interface CaptureCandidateCardProps {
@@ -50,7 +44,6 @@ export function CaptureCandidateCard({
           </label>
           <div className="task-badge-row">
             <span className={`type-pill type-pill--${candidate.itemType}`}>{TYPE_LABEL[candidate.itemType]}</span>
-            {candidate.confidence ? <span className="status-pill">{CONFIDENCE_LABEL[candidate.confidence]}</span> : null}
             {needsReviewLabel ? <span className="status-pill">{needsReviewLabel}</span> : null}
           </div>
         </div>
@@ -138,7 +131,10 @@ export function CaptureCandidateCard({
           onCopy={() => onPreviewCopy(candidate)}
         />
 
-        <p className="task-card__memo">{candidate.originalText}</p>
+        <details className="capture-source">
+          <summary>Original text</summary>
+          <p className="task-card__memo">{candidate.originalText}</p>
+        </details>
       </div>
     </article>
   );

@@ -1,4 +1,6 @@
 :root {
+  --app-width: 430px;
+  --app-gutter: 14px;
   color: #1e2a24;
   background:
     radial-gradient(circle at top left, rgba(255, 212, 149, 0.38), transparent 32%),
@@ -38,6 +40,7 @@ body,
 
 body {
   min-height: 100vh;
+  overflow-x: hidden;
 }
 
 button,
@@ -82,14 +85,14 @@ textarea:focus {
   min-height: 100vh;
   display: flex;
   justify-content: center;
-  padding: 18px 14px 22px;
+  padding: 18px var(--app-gutter) 22px;
   background:
     radial-gradient(circle at top, rgba(255, 255, 255, 0.38), transparent 28%),
     linear-gradient(180deg, #f6efdf 0%, #ede2d3 100%);
 }
 
 .device-frame {
-  width: min(100%, 430px);
+  width: min(100%, var(--app-width));
   min-height: calc(100vh - 36px);
   border-radius: 34px;
   border: 1px solid rgba(97, 113, 102, 0.14);
@@ -112,13 +115,13 @@ textarea:focus {
 
 .content {
   flex: 1;
-  padding: 20px 16px calc(108px + env(safe-area-inset-bottom));
+  padding: 18px 16px calc(152px + env(safe-area-inset-bottom));
 }
 
 .view {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
 }
 
 @keyframes float-up {
@@ -168,14 +171,14 @@ textarea:focus {
 .panel,
 .editor-card,
 .now-card {
-  padding: 20px;
+  padding: 18px;
 }
 
 .hero-card h1,
 .screen-header h1 {
   margin: 0.4rem 0 0;
-  font-size: 2.3rem;
-  line-height: 1;
+  font-size: 2.05rem;
+  line-height: 1.04;
   letter-spacing: -0.045em;
   color: var(--ink-strong);
 }
@@ -203,7 +206,11 @@ textarea:focus {
 }
 
 .hero-card--capture h1 {
-  max-width: 12ch;
+  max-width: 11ch;
+}
+
+.hero-card--compact {
+  padding-bottom: 16px;
 }
 
 .now-card__lead,
@@ -449,7 +456,7 @@ textarea:focus {
 }
 
 .field--spacious textarea {
-  min-height: 210px;
+  min-height: 176px;
 }
 
 .field--tight {
@@ -490,6 +497,32 @@ textarea:focus {
   border-radius: 24px;
   background: rgba(255, 255, 255, 0.42);
   box-shadow: none;
+}
+
+.capture-save-bar {
+  position: sticky;
+  bottom: calc(96px + env(safe-area-inset-bottom));
+  z-index: 8;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 24px;
+  border: 1px solid rgba(56, 72, 64, 0.1);
+  background: rgba(255, 249, 241, 0.96);
+  box-shadow: 0 14px 26px rgba(106, 84, 46, 0.08);
+}
+
+.capture-save-bar strong {
+  display: block;
+  font-size: 1rem;
+  color: var(--ink-strong);
+}
+
+.capture-save-bar p {
+  margin: 0.3rem 0 0;
+  font-size: 0.88rem;
 }
 
 .chip-group,
@@ -606,15 +639,23 @@ textarea:focus {
 }
 
 .bottom-nav {
-  position: sticky;
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
   bottom: 0;
+  width: min(calc(100vw - (var(--app-gutter) * 2)), var(--app-width));
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
   padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
-  background: rgba(248, 241, 230, 0.92);
+  z-index: 50;
+  border-top-left-radius: 26px;
+  border-top-right-radius: 26px;
+  border: 1px solid rgba(63, 85, 73, 0.08);
+  border-bottom: 0;
+  background: rgba(248, 241, 230, 0.94);
   backdrop-filter: blur(20px);
-  border-top: 1px solid rgba(63, 85, 73, 0.08);
+  box-shadow: 0 -12px 28px rgba(56, 43, 27, 0.12);
 }
 
 .bottom-nav__item {
@@ -626,8 +667,9 @@ textarea:focus {
   border-radius: 18px;
   background: transparent;
   color: #738179;
-  font-size: 0.84rem;
+  font-size: 0.8rem;
   font-weight: 600;
+  padding-inline: 0.2rem;
 }
 
 .bottom-nav__item.is-active {
@@ -649,6 +691,21 @@ textarea:focus {
 
 .candidate-input {
   margin-bottom: 0;
+}
+
+.capture-source {
+  margin-top: 12px;
+}
+
+.capture-source summary {
+  cursor: pointer;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.capture-source[open] summary {
+  margin-bottom: 6px;
 }
 
 .qa-feedback-list {
@@ -686,6 +743,7 @@ textarea:focus {
 .modal-backdrop {
   position: fixed;
   inset: 0;
+  z-index: 60;
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -703,7 +761,8 @@ textarea:focus {
 .toast {
   position: fixed;
   left: 50%;
-  bottom: calc(92px + env(safe-area-inset-bottom));
+  z-index: 70;
+  bottom: calc(112px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
   width: min(calc(100vw - 32px), 360px);
   padding: 0.95rem 1rem;
@@ -730,6 +789,16 @@ textarea:focus {
     min-height: 100vh;
   }
 
+  .bottom-nav {
+    left: 0;
+    transform: none;
+    width: 100%;
+    border-left: 0;
+    border-right: 0;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+  }
+
   .modal-backdrop {
     padding: 0;
   }
@@ -749,6 +818,11 @@ textarea:focus {
   .qa-metrics-grid,
   .form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .capture-save-bar {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .task-card {

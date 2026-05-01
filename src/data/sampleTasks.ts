@@ -37,7 +37,7 @@ export function sampleTasks(now: Date): Task[] {
     createTaskFromDraft(
       {
         title: 'Project check-in',
-        memo: 'Calendar-ready sample event saved locally in the PWA.',
+        memo: 'A sample event that is ready to add to your calendar.',
         durationMinutes: 30,
         importance: 'medium',
         due: 'tomorrow',

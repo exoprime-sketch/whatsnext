@@ -50,8 +50,7 @@ function renderTaskList(
     </div>
   ) : (
     <div className="empty-state">
-      <h3>Nothing here right now.</h3>
-      <p>Capture another plan or confirm one event detail.</p>
+      <h3>Nothing to chase right now.</h3>
     </div>
   );
 }
@@ -133,8 +132,7 @@ export function UpcomingPanel({
     <section className="panel panel--quiet">
       <div className="section-heading">
         <div>
-          <h2>Upcoming</h2>
-          <p>What might you miss?</p>
+          <h2>What might you miss?</h2>
         </div>
       </div>
 

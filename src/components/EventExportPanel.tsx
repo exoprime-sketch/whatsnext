@@ -42,14 +42,10 @@ export function EventExportPanel({ item, onDownload, onCopy }: EventExportPanelP
           </button>
         ) : null}
         <button type="button" className="ghost-button" onClick={onCopy}>
-          Copy event details
+          Copy details
         </button>
       </div>
-      <p className="subcopy">
-        {exportReady
-          ? 'Add this to your calendar. Native calendar save comes later.'
-          : 'Add to calendar manually for now. Native calendar save comes later.'}
-      </p>
+      <p className="subcopy">{exportReady ? 'Add the downloaded file to your calendar.' : 'Add to calendar manually.'}</p>
     </section>
   );
 }

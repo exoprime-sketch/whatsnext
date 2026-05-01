@@ -2,19 +2,6 @@ import { EventExportPanel } from './EventExportPanel';
 import { formatParsedDate, formatParsedTime, getDueLabel } from '../lib/time';
 import type { Task } from '../types';
 
-const IMPORTANCE_LABEL = {
-  high: 'High priority',
-  medium: 'Medium priority',
-  low: 'Low priority'
-} as const;
-
-const TIME_LABEL = {
-  morning: 'Best in the morning',
-  afternoon: 'Best in the afternoon',
-  evening: 'Best in the evening',
-  anytime: 'Any time'
-} as const;
-
 const TYPE_LABEL = {
   task: 'Task',
   event: 'Event',
@@ -40,18 +27,10 @@ export function TaskCard({
   onDownloadICS,
   onCopyDetails
 }: TaskCardProps) {
-  const metaItems = [TYPE_LABEL[task.itemType], `${task.durationMinutes} min`];
+  const metaItems: string[] = [];
 
   if (task.due !== 'none') {
     metaItems.push(getDueLabel(task.due));
-  }
-
-  if (task.importance !== 'low') {
-    metaItems.push(IMPORTANCE_LABEL[task.importance]);
-  }
-
-  if (task.preferredTime !== 'anytime') {
-    metaItems.push(TIME_LABEL[task.preferredTime]);
   }
 
   if (task.parsedDate) {
@@ -85,7 +64,6 @@ export function TaskCard({
           <div className="stack stack--tight">
             <div className="task-badge-row">
               <span className={`type-pill type-pill--${task.itemType}`}>{TYPE_LABEL[task.itemType]}</span>
-              {task.source === 'capture' ? <span className="status-pill">Captured</span> : null}
               {task.calendarReady ? <span className="status-pill status-pill--ready">Calendar-ready</span> : null}
               {reviewLabel ? <span className="status-pill">{reviewLabel}</span> : null}
               {showStatus ? (
@@ -97,11 +75,13 @@ export function TaskCard({
             <h3>{task.title}</h3>
           </div>
         </div>
-        <div className="meta-row">
-          {metaItems.map((item) => (
-            <span key={item}>{item}</span>
-          ))}
-        </div>
+        {metaItems.length > 0 ? (
+          <div className="meta-row">
+            {metaItems.map((item) => (
+              <span key={item}>{item}</span>
+            ))}
+          </div>
+        ) : null}
         {task.memo ? <p className="task-card__memo">{task.memo}</p> : null}
         {task.alarmLabel && task.alarmEnabled ? <p className="task-card__insight">Alarm: {task.alarmLabel}</p> : null}
         {delayedCount > 0 ? (

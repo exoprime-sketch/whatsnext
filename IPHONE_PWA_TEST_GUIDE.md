@@ -30,7 +30,7 @@ This version should feel like:
 - `Needs date` and `Needs time` states
 - alarm options for calendar export
 - `.ics` downloads when date and time are clear
-- `Copy event details` fallback
+- `Copy details` fallback
 
 ## What The Current PWA Does Not Support Yet
 
@@ -61,7 +61,7 @@ This version should feel like:
 - Does `Capture` explain the product in 5 seconds?
 - Does the app feel useful before native iOS features exist?
 - Is `Upcoming` easy to scan on iPhone?
-- Are `Download calendar file` and `Copy event details` honest and usable?
+- Are `Download calendar file` and `Copy details` honest and usable?
 - Do `Needs date` and `Needs time` help rather than confuse?
 
 ## 3-Day Test Plan
@@ -77,7 +77,7 @@ This version should feel like:
 
 - Paste one real appointment or friend plan
 - Adjust an alarm option
-- Copy event details or download `.ics`
+- Copy details or download `.ics`
 - Reopen from Home Screen
 
 ### Day 3

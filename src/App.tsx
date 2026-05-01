@@ -240,6 +240,11 @@ export default function App() {
   ).length;
   const capturedCount = tasks.filter((task) => task.source === 'capture').length;
   const recentCaptureCount = tasks.filter((task) => task.source === 'capture').slice(0, 5).length;
+  const hasSavedItems = activeTasks.length > 0;
+  const selectedCaptureCandidates = captureCandidates.filter((candidate) => candidate.selected && candidate.title.trim());
+  const selectedCaptureCounts = getItemCounts(selectedCaptureCandidates);
+  const selectedCaptureCalendarReadyCount = getCalendarReadyCount(selectedCaptureCandidates);
+  const selectedCaptureReviewCounts = getReviewCounts(selectedCaptureCandidates);
 
   function showToast(message: string) {
     setToastMessage(message);
@@ -529,7 +534,7 @@ export default function App() {
       trackQAEvent('calendar_export_available', { calendarReadyCount: 1 }, stamp, nextTasks);
     }
 
-    showToast(source === 'capture' ? 'Saved.' : 'Manual item saved. Capture is still the faster path.');
+    showToast(source === 'capture' ? "Saved. You don't have to retype it later." : 'Saved.');
     setActiveView(source === 'manual' ? 'tasks' : 'upcoming');
   }
 
@@ -827,7 +832,7 @@ export default function App() {
       trackQAEvent('alarm_option_selected', { alarmSelectionCount: alarmSelections }, stamp, nextTasks);
     }
 
-    showToast('Saved. Now you do not have to retype it later.');
+    showToast("Saved. You don't have to retype it later.");
   }
 
   function updateCaptureCandidate(candidateId: string, updates: Partial<CaptureCandidate>) {
@@ -870,7 +875,7 @@ export default function App() {
     if (success) {
       trackQAEvent('event_details_copied', { eventDetailsCopiedCount: 1 });
     }
-    showToast(success ? 'Event details copied.' : 'Copy failed.');
+    showToast(success ? 'Details copied.' : 'Copy failed.');
   }
 
   function previewDownloadICS(candidate: CaptureCandidate) {
@@ -894,7 +899,7 @@ export default function App() {
       setTasks((current) => current.map((item) => (item.id === task.id ? incrementCopiedDetails(item) : item)));
       trackQAEvent('event_details_copied', { eventDetailsCopiedCount: 1 });
     }
-    showToast(success ? 'Event details copied.' : 'Copy failed.');
+    showToast(success ? 'Details copied.' : 'Copy failed.');
   }
 
   function handleDownloadICS(task: Task) {
@@ -940,19 +945,19 @@ export default function App() {
 
         <section className="summary-grid summary-grid--three">
           <article className="summary-card summary-card--quiet">
-            <div className="eyebrow">Captured locally</div>
+            <div className="eyebrow">Saved from capture</div>
             <strong>{capturedCount}</strong>
-            <p>Saved from pasted notes, messages, or plans.</p>
+            <p>Follow-ups saved from pasted notes.</p>
           </article>
           <article className="summary-card summary-card--quiet">
-            <div className="eyebrow">Upcoming soon</div>
+            <div className="eyebrow">Coming up</div>
             <strong>{todayFollowUpsCount}</strong>
-            <p>Things that look time-sensitive.</p>
+            <p>Things worth checking soon.</p>
           </article>
           <article className="summary-card summary-card--quiet">
             <div className="eyebrow">Needs review</div>
             <strong>{reviewCounts.needsDateReviewCount + reviewCounts.needsTimeReviewCount}</strong>
-            <p>Items that still need a date or time check.</p>
+            <p>Review before you forget.</p>
           </article>
         </section>
 
@@ -960,7 +965,7 @@ export default function App() {
           <div className="section-heading">
             <div>
               <h2>Keep moving</h2>
-              <p>The next few items that still deserve attention.</p>
+              <p>The next few follow-ups.</p>
             </div>
             <button type="button" className="ghost-button" onClick={() => setActiveView('upcoming')}>
               View upcoming
@@ -998,7 +1003,7 @@ export default function App() {
           <div>
             <div className="eyebrow">Upcoming</div>
             <h1>What might you miss?</h1>
-            <p>See what needs attention today, tomorrow, this week, or a date/time review.</p>
+            <p>Today, tomorrow, and anything that still needs a date or time.</p>
           </div>
           <button type="button" className="ghost-button" onClick={() => setActiveView('capture')}>
             Capture more
@@ -1009,7 +1014,7 @@ export default function App() {
           <article className="summary-card summary-card--quiet">
             <div className="eyebrow">Today's follow-ups</div>
             <strong>{todayFollowUpsCount}</strong>
-            <p>Events, reminders, and deadlines worth checking first.</p>
+            <p>Worth checking first.</p>
           </article>
           <article className="summary-card summary-card--quiet">
             <div className="eyebrow">Needs review</div>
@@ -1019,23 +1024,8 @@ export default function App() {
           <article className="summary-card summary-card--quiet">
             <div className="eyebrow">Calendar-ready</div>
             <strong>{calendarNotExportedCount}</strong>
-            <p>Ready to export, but not downloaded yet.</p>
+            <p>Ready to add to your calendar.</p>
           </article>
-        </section>
-
-        <section className="panel panel--quiet">
-          <div className="section-heading">
-            <div>
-              <h2>Daily use</h2>
-              <p>Today’s follow-ups, review items, and recent captures in one place.</p>
-            </div>
-          </div>
-          <div className="meta-row meta-row--summary">
-            <span>Today: {todayFollowUpsCount}</span>
-            <span>Needs review: {reviewCounts.needsDateReviewCount + reviewCounts.needsTimeReviewCount}</span>
-            <span>Calendar-ready: {calendarReadySavedCount}</span>
-            <span>Recent captures: {recentCaptureCount}</span>
-          </div>
         </section>
 
         <UpcomingPanel
@@ -1059,7 +1049,7 @@ export default function App() {
           <div>
             <div className="eyebrow">Tasks</div>
             <h1>Saved items</h1>
-            <p>Everything saved locally. Add manually only when there is nothing useful to capture.</p>
+            <p>Everything you saved from capture or quick add.</p>
           </div>
           <div className="action-row">
             <button type="button" className="secondary-button" onClick={() => setManualEditorOpen(true)}>
@@ -1118,8 +1108,7 @@ export default function App() {
             ))
           ) : (
             <div className="empty-state">
-              <h3>No saved items in this view.</h3>
-              <p>Paste a message or plan in Capture and we will fill this in for you.</p>
+              <h3>No saved tasks yet.</h3>
             </div>
           )}
         </div>
@@ -1128,7 +1117,9 @@ export default function App() {
   }
 
   function renderCaptureGroup(type: ItemType) {
-    const items = captureCandidates.filter((candidate) => candidate.itemType === type);
+    const items = captureCandidates.filter(
+      (candidate) => candidate.itemType === type && !candidate.needsDateReview && !candidate.needsTimeReview
+    );
 
     if (items.length === 0) {
       return null;
@@ -1159,35 +1150,52 @@ export default function App() {
     );
   }
 
+  function renderNeedsReviewGroup() {
+    const items = captureCandidates.filter((candidate) => candidate.needsDateReview || candidate.needsTimeReview);
+
+    if (items.length === 0) {
+      return null;
+    }
+
+    return (
+      <section className="capture-group">
+        <div className="section-heading">
+          <div>
+            <h2>Needs review</h2>
+            <p>Review before you forget</p>
+          </div>
+        </div>
+        <div className="stack">
+          {items.map((candidate) => (
+            <CaptureCandidateCard
+              key={candidate.id}
+              candidate={candidate}
+              onToggleSelected={(candidateId, selected) => updateCaptureCandidate(candidateId, { selected })}
+              onChange={updateCaptureCandidate}
+              onAlarmChange={updateCaptureCandidateAlarm}
+              onPreviewDownload={previewDownloadICS}
+              onPreviewCopy={previewCopyDetails}
+            />
+          ))}
+        </div>
+      </section>
+    );
+  }
+
   function renderCaptureView() {
     return (
       <section className="view">
-        <header className="hero-card hero-card--capture">
+        <header className="hero-card hero-card--capture hero-card--compact">
           <div className="eyebrow">What's Next</div>
           <h1>Stop retyping tasks and plans.</h1>
-          <p>Paste a message, meeting note, or plan. What&apos;s Next turns it into tasks, reminders, and calendar-ready events.</p>
-          <div className="hero-card__footer">
-            <span>Capture the plan. Keep the reminder.</span>
-            <span>Messages in. Tasks, events, and reminders out.</span>
-            <span>Add alarms before you forget.</span>
-          </div>
+          <p>Paste a message or meeting note. We&apos;ll find the follow-ups.</p>
         </header>
-
-        <section className="panel panel--quiet roadmap-note">
-          <div className="section-heading">
-            <div>
-              <h2>PWA reality</h2>
-              <p>For now, paste text to test capture. Native share-sheet and calendar save can come later.</p>
-            </div>
-          </div>
-          <p className="subcopy">We only use what you paste here. No account. No server. No automatic message reading.</p>
-        </section>
 
         <section className="panel panel--capture">
           <label className="field field--spacious">
             <span>Paste a message, meeting note, or plan</span>
             <textarea
-              rows={9}
+              rows={7}
               value={captureText}
               onChange={(event) => setCaptureText(event.target.value)}
               placeholder="Example: Dinner with Mina on Saturday at 7 PM near Gangnam Station. Don't forget to book a table before Friday. Please send the revised report by Friday and call Alex at 3 PM tomorrow."
@@ -1204,9 +1212,32 @@ export default function App() {
               Clear
             </button>
           </div>
-          <p className="subcopy">
-            Calendar export uses downloads or copied details for now. Native Calendar, Reminders, widgets, and notifications come later.
-          </p>
+          <p className="subcopy">Only what you paste. No account.</p>
+        </section>
+
+        <section className="panel panel--quiet">
+          <div className="section-heading">
+            <div>
+              <h2>What might you miss?</h2>
+            </div>
+            {hasSavedItems ? (
+              <button type="button" className="ghost-button" onClick={() => setActiveView('upcoming')}>
+                View upcoming
+              </button>
+            ) : null}
+          </div>
+          {hasSavedItems ? (
+            <div className="meta-row meta-row--summary">
+              <span>Today {todayFollowUpsCount}</span>
+              <span>Needs review {reviewCounts.needsDateReviewCount + reviewCounts.needsTimeReviewCount}</span>
+              <span>Calendar-ready {calendarNotExportedCount}</span>
+            </div>
+          ) : (
+            <div className="empty-state">
+              <h3>No follow-ups yet.</h3>
+              <p>Paste something messy. We&apos;ll clean it up.</p>
+            </div>
+          )}
         </section>
 
         {captureOutcome ? (
@@ -1214,7 +1245,7 @@ export default function App() {
             <div className="section-heading">
               <div>
                 <h2>Typing saved</h2>
-                <p>Saved {captureOutcome.savedCount} items. {getCaptureOutcomeText(captureOutcome.manualEntriesAvoidedApprox)}</p>
+                <p>Saved. You don&apos;t have to retype it later.</p>
               </div>
               <div className="action-row">
                 <button type="button" className="secondary-button" onClick={() => setActiveView('upcoming')}>
@@ -1242,7 +1273,7 @@ export default function App() {
                 </p>
               </article>
               <article className="summary-card summary-card--quiet">
-                <div className="eyebrow">Saved types</div>
+                <div className="eyebrow">Saved</div>
                 <strong>{captureOutcome.savedCount}</strong>
                 <p>
                   {captureOutcome.savedTaskCount} tasks, {captureOutcome.savedEventCount} events, {captureOutcome.savedReminderCount} reminders
@@ -1255,39 +1286,42 @@ export default function App() {
         <section className="panel panel--quiet">
           <div className="section-heading">
             <div>
-              <h2>Detected items</h2>
+              <h2>{captureCandidates.length > 0 ? `${captureCandidates.length} item${captureCandidates.length === 1 ? '' : 's'} found` : 'Detected items'}</h2>
               <p>
                 {captureCandidates.length > 0
-                  ? 'Select what to keep, tune the timing, and choose alarms before you save.'
-                  : 'Paste something messy and we will sort it into tasks, events, reminders, and review items.'}
+                  ? `${getCalendarReadyCount(captureCandidates)} calendar-ready. ${captureReviewCounts.needsDateReviewCount + captureReviewCounts.needsTimeReviewCount} need review.`
+                  : 'Paste something messy. We’ll clean it up.'}
               </p>
             </div>
-            {captureCandidates.length > 0 ? (
-              <button type="button" className="secondary-button" onClick={saveCaptureCandidates}>
-                Save selected
-              </button>
-            ) : null}
           </div>
 
           {captureCandidates.length > 0 ? (
             <>
-              <div className="meta-row meta-row--summary">
-                <span>{captureCandidateCounts.task} tasks</span>
-                <span>{captureCandidateCounts.event} events</span>
-                <span>{captureCandidateCounts.reminder} reminders</span>
-                <span>{getCalendarReadyCount(captureCandidates)} calendar-ready</span>
-                <span>{captureReviewCounts.needsDateReviewCount + captureReviewCounts.needsTimeReviewCount} need review</span>
+              <div className="capture-save-bar">
+                <div>
+                  <strong>{selectedCaptureCandidates.length} selected</strong>
+                  <p>
+                    {selectedCaptureCounts.task} tasks, {selectedCaptureCounts.event} events, {selectedCaptureCounts.reminder} reminders
+                  </p>
+                  <p>
+                    {selectedCaptureCalendarReadyCount} calendar-ready. {selectedCaptureReviewCounts.needsDateReviewCount + selectedCaptureReviewCounts.needsTimeReviewCount} need review.
+                  </p>
+                </div>
+                <button type="button" className="primary-button" onClick={saveCaptureCandidates}>
+                  Save selected
+                </button>
               </div>
               <div className="stack">
                 {renderCaptureGroup('task')}
                 {renderCaptureGroup('event')}
                 {renderCaptureGroup('reminder')}
+                {renderNeedsReviewGroup()}
               </div>
             </>
           ) : (
             <div className="empty-state">
               <h3>No extraction yet.</h3>
-              <p>Throw messy text here first. The goal is to avoid retyping, then keep the important details visible.</p>
+              <p>Paste something messy. We&apos;ll clean it up.</p>
             </div>
           )}
         </section>
@@ -1302,23 +1336,13 @@ export default function App() {
           <div>
             <div className="eyebrow">Settings</div>
             <h1>Settings</h1>
-            <p>Enough to test the capture-to-reminder flow honestly.</p>
+            <p>Local settings for your saved items.</p>
           </div>
         </header>
 
         <section className="panel panel--quiet">
           <h2>Privacy</h2>
-          <p>We only use what you paste here. No automatic message reading. No account. No server.</p>
-        </section>
-
-        <section className="panel panel--quiet">
-          <h2>PWA limits</h2>
-          <p>No direct iOS Calendar write, no direct Reminders write, and no guaranteed system notifications yet.</p>
-        </section>
-
-        <section className="panel panel--quiet">
-          <h2>Native direction</h2>
-          <p>Share sheet capture, EventKit save, native alarms, widgets, and local notifications belong in native iOS later.</p>
+          <p>Only what you paste. No account. No server.</p>
         </section>
 
         {qaMode ? (
@@ -1350,7 +1374,7 @@ export default function App() {
 
         <section className="panel panel--quiet">
           <h2>Version</h2>
-          <p>PWA reminder-ready test v0.1</p>
+          <p>Version 0.1</p>
         </section>
       </section>
     );

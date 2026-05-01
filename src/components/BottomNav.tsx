@@ -21,6 +21,7 @@ export function BottomNav({ activeView, onChange }: BottomNavProps) {
           key={item.key}
           type="button"
           className={`bottom-nav__item ${activeView === item.key ? 'is-active' : ''}`}
+          aria-current={activeView === item.key ? 'page' : undefined}
           onClick={() => onChange(item.key)}
         >
           <span>{item.label}</span>

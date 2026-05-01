@@ -21,7 +21,7 @@ Workflow:
 4. Save selected items locally
 5. Check `Upcoming` to see what might be missed
 6. Download a `.ics` calendar file when an event is clear enough
-7. Copy event details when calendar export is not ready
+7. Copy details when calendar export is not ready
 
 Current tabs:
 
@@ -42,7 +42,7 @@ Current tabs:
 - Alarm options for calendar export
 - Calendar-ready event and reminder records
 - Downloadable `.ics` files when date and time are clear
-- `Copy event details` fallback when export is awkward or ambiguous
+- `Copy details` fallback when export is awkward or ambiguous
 - Local `Upcoming` view for `Today`, `Tomorrow`, `This week`, `Needs review`, and `Later / No date`
 - Local-only founder QA mode
 
@@ -119,7 +119,7 @@ If you deploy to a project site like `https://<account>.github.io/<repo>/`, buil
 VITE_BASE_PATH=/whatsnext/ npm run build
 ```
 
-## What To Validate
+## Closed Test Goal
 
 - Does capture reduce retyping?
 - Do extracted items feel usable after light editing?

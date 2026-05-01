@@ -30,8 +30,8 @@ export function NowCard({
     return (
       <section className="now-card empty">
         <div className="eyebrow">Now</div>
-        <h2>Nothing needs follow-up yet.</h2>
-        <p>Start in Capture. Paste something messy first, then come back here for the next move.</p>
+        <h2>Nothing urgent right now.</h2>
+        <p>Paste something messy. We&apos;ll clean it up.</p>
         <div className="empty-actions">
           <button type="button" className="primary-button" onClick={onOpenCapture}>
             Go to Capture
@@ -79,7 +79,7 @@ export function NowCard({
           Not today
         </button>
       </div>
-      <p className="subcopy">Use this to prep, confirm, or clear the next thing before it slips.</p>
+      <p className="subcopy">Clear it, prep it, or confirm it.</p>
     </section>
   );
 }

@@ -176,7 +176,7 @@ export function TaskEditor({
       </div>
 
       <div className="field">
-        <span>Time</span>
+        <span>Duration</span>
         <ChipGroup
           value={draft.durationMinutes}
           options={DURATION_OPTIONS.map((option) => ({ value: option, label: `${option} min` }))}
@@ -226,7 +226,6 @@ export function TaskEditor({
       <button type="submit" className="primary-button" disabled={!draft.title.trim()}>
         {submitLabel}
       </button>
-      <p className="subcopy">Use manual add only when there is nothing useful to capture.</p>
     </form>
   );
 }
