@@ -9,6 +9,12 @@ const REMINDER_PATTERN =
   /\b(remember|remind|don't forget|dont forget|follow up|follow-up|check back|ping|nudge|circle back|bring|buy|pick up|book|pack)\b/i;
 const ACTION_PATTERN =
   /\b(reply|send|review|finish|draft|prepare|plan|check|confirm|call|book|schedule|update|share|pay|submit|organize|clean|email|message|meet|join|follow up)\b/i;
+const ACTION_LEAD_PATTERN =
+  /^(?:also\s+|then\s+)?(?:can you\s+|could you\s+|please\s+)?(?:reply|send|review|finish|draft|prepare|plan|check|confirm|call|book|schedule|update|share|pay|submit|organize|clean|email|message|meet|join|follow up|bring|buy|remember|don't forget|dont forget|remind)\b/i;
+const EVENT_LEAD_PATTERN =
+  /^(?:the\s+)?(?:meeting|meet|call|appointment|lunch|dinner|breakfast|coffee|check-in|check in|sync|visit|demo|calendar|interview|session|doctor|dentist|flight)\b/i;
+const CLAUSE_SPLIT_PATTERN =
+  /(?:,\s*|\s+\band\b\s+)(?=(?:also\s+|then\s+)?(?:reply|send|review|finish|draft|prepare|plan|check|confirm|call|book|schedule|update|share|pay|submit|organize|clean|email|message|meet|join|follow up|bring|buy|remember|don't forget|dont forget|remind)\b)/i;
 
 export const SAMPLE_CAPTURE_TEXT = `Please send the revised report by Friday.
 Check the budget numbers tomorrow morning and prepare slides for next week's review.
@@ -81,19 +87,27 @@ function extractLocationText(text: string) {
     return capitalizeWords(videoMatch[1].toLowerCase());
   }
 
-  const placeMatch = text.match(
-    /\b(?:near|in|at)\s+([^,.;\n]+?)(?=\s+(?:today|tomorrow|tonight|this|next|before|with|on|via|at)\b|$)/i
-  );
-  if (!placeMatch) {
-    return undefined;
+  const orderedPatterns = [
+    /\bnear\s+([^,.;\n]+?)(?=\s+(?:today|tomorrow|tonight|this|next|before|with|on|via|at)\b|$)/i,
+    /\bin\s+([^,.;\n]+?)(?=\s+(?:today|tomorrow|tonight|this|next|before|with|on|via|at)\b|$)/i,
+    /\bat\s+([^,.;\n]+?)(?=\s+(?:today|tomorrow|tonight|this|next|before|with|on|via)\b|$)/i
+  ];
+
+  for (const pattern of orderedPatterns) {
+    const match = text.match(pattern);
+    if (!match) {
+      continue;
+    }
+
+    const label = normalizeWhitespace(match[1].replace(/["'.,]/g, ' '));
+    if (!label || /^\d{1,2}(?::\d{2})?\s*(?:am|pm)\b/i.test(label)) {
+      continue;
+    }
+
+    return capitalizeWords(label.toLowerCase());
   }
 
-  const label = normalizeWhitespace(placeMatch[1].replace(/["'.,]/g, ' '));
-  if (!label || /\d{1,2}(?::\d{2})?\s*(?:am|pm)/i.test(label)) {
-    return undefined;
-  }
-
-  return capitalizeWords(label.toLowerCase());
+  return undefined;
 }
 
 function extractPersonText(text: string) {
@@ -111,13 +125,31 @@ function extractPersonText(text: string) {
 function inferItemType(text: string, hasDateOrTime: boolean, hasLocation: boolean): ItemType {
   const reminderScore = REMINDER_PATTERN.test(text) ? 2 : 0;
   const eventScore = (EVENT_PATTERN.test(text) ? 2 : 0) + (hasDateOrTime ? 1 : 0) + (hasLocation ? 1 : 0);
-
-  if (eventScore >= 2) {
-    return 'event';
-  }
+  const actionDriven = ACTION_LEAD_PATTERN.test(text);
+  const eventLead = EVENT_LEAD_PATTERN.test(text);
+  const timeDriven = /\b(at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)|\d{1,2}(?::\d{2})?\s*(?:am|pm)|morning|afternoon|evening|tonight|noon|midnight)\b/i.test(
+    text
+  );
+  const socialCue = /\b(dinner|lunch|coffee|breakfast|appointment|doctor|dentist|flight|visit)\b/i.test(text);
 
   if (reminderScore >= 2) {
     return 'reminder';
+  }
+
+  if (eventLead || socialCue) {
+    return 'event';
+  }
+
+  if (timeDriven && /\b(with|join|meet|call|zoom|teams|appointment|sync|check-in|check in)\b/i.test(text)) {
+    return 'event';
+  }
+
+  if (actionDriven && !timeDriven && !hasLocation) {
+    return 'task';
+  }
+
+  if (eventScore >= 2) {
+    return 'event';
   }
 
   if (hasDateOrTime && /\b(with|join|meet|call|zoom|teams|appointment|dinner|lunch|coffee)\b/i.test(text)) {
@@ -125,6 +157,21 @@ function inferItemType(text: string, hasDateOrTime: boolean, hasLocation: boolea
   }
 
   return 'task';
+}
+
+function splitCompoundFragment(fragment: string) {
+  const normalized = normalizeWhitespace(fragment);
+
+  if (!CLAUSE_SPLIT_PATTERN.test(normalized)) {
+    return [normalized];
+  }
+
+  const parts = normalized
+    .split(CLAUSE_SPLIT_PATTERN)
+    .map((part) => normalizeWhitespace(part.replace(/^(?:and|also|then)\s+/i, ' ')))
+    .filter((part) => part.length >= 4);
+
+  return parts.length > 0 ? parts : [normalized];
 }
 
 function normalizeActionText(fragment: string) {
@@ -137,7 +184,8 @@ function normalizeActionText(fragment: string) {
 function stripSchedulingContext(fragment: string) {
   return normalizeActionText(
     fragment
-      .replace(/\b(today|tomorrow|tonight|this morning|this afternoon|this evening|this week|next week)\b/gi, ' ')
+      .replace(/\b(today|tomorrow|tonight|this morning|this afternoon|this evening)\b/gi, ' ')
+      .replace(/\b(this week|next week)(?:'s)?\b/gi, ' ')
       .replace(/\b(next\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))\b/gi, ' ')
       .replace(/\b((?:by|before|on)\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))\b/gi, ' ')
       .replace(/\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/gi, ' ')
@@ -156,37 +204,51 @@ function toActionTitle(fragment: string) {
     'reply to',
     'follow up on',
     'follow up',
-    'review',
-    'draft',
     'send',
+    'submit',
+    'prepare',
     'check',
     'confirm',
+    'review',
+    'draft',
+    'update',
+    'email',
+    'message',
+    'organize',
+    'schedule',
+    'share',
+    'pay',
     'plan',
-    'prepare',
     'clean',
     'clear',
     'call',
     'outline',
     'finish',
     'book',
-    'schedule',
     'join',
     'meet',
-    'pay',
-    'submit',
     'bring',
     'buy'
   ];
 
   const lowered = fragment.toLowerCase();
+  let bestMatch: { index: number; phrase: string } | null = null;
 
   for (const phrase of verbPhrases) {
     const index = lowered.indexOf(phrase);
-    if (index >= 0) {
-      const extracted = normalizeActionText(fragment.slice(index));
-      if (extracted) {
-        return extracted.charAt(0).toUpperCase() + extracted.slice(1);
-      }
+    if (index < 0) {
+      continue;
+    }
+
+    if (!bestMatch || index < bestMatch.index || (index === bestMatch.index && phrase.length > bestMatch.phrase.length)) {
+      bestMatch = { index, phrase };
+    }
+  }
+
+  if (bestMatch) {
+    const extracted = normalizeActionText(fragment.slice(bestMatch.index)).replace(/\b(by|before|on|at)\b$/i, '').trim();
+    if (extracted) {
+      return extracted.charAt(0).toUpperCase() + extracted.slice(1);
     }
   }
 
@@ -317,7 +379,8 @@ export function extractCaptureCandidates(text: string, now = new Date()): Captur
     .replace(/\r/g, '\n')
     .split(/[\n]+|[.!?]+/)
     .map((fragment) => fragment.trim())
-    .filter((fragment) => fragment.length >= 4);
+    .filter((fragment) => fragment.length >= 4)
+    .flatMap((fragment) => splitCompoundFragment(fragment));
 
   const candidates: CaptureCandidate[] = [];
 
