@@ -4,23 +4,6 @@ import type { ItemType, TaskDraft } from '../types';
 import { applyDraftScheduling, DEFAULT_TASK_DRAFT, supportsAlarmSelection, updateAlarmPreference } from '../lib/tasks';
 
 const DURATION_OPTIONS: TaskDraft['durationMinutes'][] = [5, 10, 15, 30, 60];
-const IMPORTANCE_OPTIONS: Array<{ value: TaskDraft['importance']; label: string }> = [
-  { value: 'low', label: 'Low' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'high', label: 'High' }
-];
-const DUE_OPTIONS: Array<{ value: TaskDraft['due']; label: string }> = [
-  { value: 'today', label: 'Today' },
-  { value: 'tomorrow', label: 'Tomorrow' },
-  { value: 'thisWeek', label: 'This week' },
-  { value: 'none', label: 'No due date' }
-];
-const TIME_OPTIONS: Array<{ value: TaskDraft['preferredTime']; label: string }> = [
-  { value: 'morning', label: 'Morning' },
-  { value: 'afternoon', label: 'Afternoon' },
-  { value: 'evening', label: 'Evening' },
-  { value: 'anytime', label: 'Any time' }
-];
 const TYPE_OPTIONS: Array<{ value: ItemType; label: string }> = [
   { value: 'task', label: 'Task' },
   { value: 'event', label: 'Event' },
@@ -181,33 +164,6 @@ export function TaskEditor({
           value={draft.durationMinutes}
           options={DURATION_OPTIONS.map((option) => ({ value: option, label: `${option} min` }))}
           onChange={(value) => patchDraft({ durationMinutes: value as TaskDraft['durationMinutes'] })}
-        />
-      </div>
-
-      <div className="field">
-        <span>Importance</span>
-        <ChipGroup
-          value={draft.importance}
-          options={IMPORTANCE_OPTIONS}
-          onChange={(value) => patchDraft({ importance: value as TaskDraft['importance'] })}
-        />
-      </div>
-
-      <div className="field">
-        <span>Due</span>
-        <ChipGroup
-          value={draft.due}
-          options={DUE_OPTIONS}
-          onChange={(value) => patchDraft({ due: value as TaskDraft['due'] })}
-        />
-      </div>
-
-      <div className="field">
-        <span>Best time</span>
-        <ChipGroup
-          value={draft.preferredTime}
-          options={TIME_OPTIONS}
-          onChange={(value) => patchDraft({ preferredTime: value as TaskDraft['preferredTime'] })}
         />
       </div>
 

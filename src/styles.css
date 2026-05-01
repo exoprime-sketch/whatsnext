@@ -96,6 +96,8 @@ textarea:focus {
 }
 
 .app-shell {
+  position: relative;
+  width: 100%;
   min-height: 100vh;
   min-height: 100dvh;
   display: flex;
@@ -129,7 +131,7 @@ textarea:focus {
     linear-gradient(180deg, rgba(255, 252, 247, 0.98) 0%, rgba(245, 239, 232, 0.98) 100%);
 }
 
-.content {
+.app-main {
   flex: 1;
   padding: 18px 16px calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 52px);
 }
@@ -465,6 +467,7 @@ textarea:focus {
 
 .task-card {
   display: flex;
+  flex-direction: column;
   gap: 12px;
   padding: 16px;
   background: rgba(255, 252, 248, 0.96);
@@ -472,6 +475,13 @@ textarea:focus {
 
 .capture-card {
   background: rgba(255, 251, 246, 0.97);
+}
+
+.capture-card:not(.is-unselected) {
+  border-color: rgba(91, 108, 255, 0.16);
+  box-shadow:
+    0 18px 34px rgba(53, 41, 26, 0.1),
+    0 0 0 1px rgba(91, 108, 255, 0.08);
 }
 
 .capture-card.is-unselected {
@@ -500,9 +510,11 @@ textarea:focus {
 
 .task-card__actions {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-start;
+  margin-top: 2px;
 }
 
 .export-panel,
@@ -604,6 +616,14 @@ textarea:focus {
 .capture-save-bar p {
   margin: 0.3rem 0 0;
   font-size: 0.88rem;
+}
+
+.meta-row--summary {
+  gap: 10px;
+}
+
+.meta-row--summary span {
+  background: rgba(91, 108, 255, 0.08);
 }
 
 .chip-group,
@@ -731,7 +751,7 @@ textarea:focus {
   gap: 6px;
   min-height: var(--bottom-nav-height);
   padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
-  z-index: 100;
+  z-index: 1000;
   border-top-left-radius: 26px;
   border-top-right-radius: 26px;
   border: 1px solid rgba(91, 108, 255, 0.1);
@@ -766,6 +786,7 @@ textarea:focus {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .candidate-toggle {
@@ -834,7 +855,7 @@ textarea:focus {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 200;
+  z-index: 1200;
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -852,7 +873,7 @@ textarea:focus {
 .toast {
   position: fixed;
   left: 50%;
-  z-index: 220;
+  z-index: 1220;
   bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 34px);
   transform: translateX(-50%);
   width: min(calc(100vw - 32px), 360px);
@@ -901,7 +922,7 @@ textarea:focus {
 }
 
 @media (max-width: 420px) {
-  .content {
+  .app-main {
     padding-inline: 14px;
   }
 
@@ -914,15 +935,6 @@ textarea:focus {
   .capture-save-bar {
     flex-direction: column;
     align-items: stretch;
-  }
-
-  .task-card {
-    flex-direction: column;
-  }
-
-  .task-card__actions {
-    flex-direction: row;
-    flex-wrap: wrap;
   }
 
   .screen-header,
@@ -939,20 +951,10 @@ textarea:focus {
 
   .bottom-nav__item {
     min-height: 50px;
-    font-size: 0.72rem;
+    font-size: 0.68rem;
   }
 
   .now-card__actions--three {
     grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 360px) {
-  .now-card__actions--three {
-    grid-template-columns: 1fr;
-  }
-
-  .bottom-nav {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

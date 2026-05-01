@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 import { AppHeader } from './components/AppHeader';
 import { BottomNav } from './components/BottomNav';
 import { CaptureCandidateCard } from './components/CaptureCandidateCard';
@@ -37,7 +37,7 @@ import {
   normalizeTasksForToday,
   updateAlarmPreference
 } from './lib/tasks';
-import { addDays, getGreetingCopy, plusMinutes, toDateKey } from './lib/time';
+import { addDays, plusMinutes, toDateKey } from './lib/time';
 import type {
   ActivityLog,
   AppView,
@@ -126,23 +126,6 @@ function getVisibleTasks(filter: TaskFilter, tasks: Task[], now: Date) {
   return ranked;
 }
 
-function getDelaySummary(postponedTasks: Task[]) {
-  if (postponedTasks.length === 0) {
-    return {
-      title: 'Nothing repeated',
-      detail: "You don't have a follow-up getting pushed over and over."
-    };
-  }
-
-  const topTask = postponedTasks[0];
-  const count = getPostponeWeight(topTask);
-
-  return {
-    title: topTask.title,
-    detail: `Delayed ${count} ${count === 1 ? 'time' : 'times'}.`
-  };
-}
-
 function getItemCounts<T extends { itemType: ItemType }>(items: T[]) {
   return items.reduce(
     (counts, item) => {
@@ -207,14 +190,10 @@ export default function App() {
     manualAfterCaptureTracked: false
   });
 
-  const greeting = getGreetingCopy(now);
   const recommendation = getNowRecommendation(tasks, now);
   const sortedTasks = sortTasksByRecommendation(tasks, now);
   const visibleTasks = getVisibleTasks(listFilter, tasks, now);
   const activeTasks = tasks.filter((task) => task.status === 'active');
-  const postponedTasks = tasks
-    .filter((task) => task.status === 'active' && getPostponeWeight(task) > 0)
-    .sort((left, right) => getPostponeWeight(right) - getPostponeWeight(left));
   const nextCandidates = sortedTasks
     .filter(
       (task) =>
@@ -223,13 +202,9 @@ export default function App() {
         Number.isFinite(scoreTask(task, now).score)
     )
     .slice(0, 3);
-  const delaySummary = getDelaySummary(postponedTasks);
   const qaSummary = buildQASummary(qaData.events, tasks);
-  const captureCandidateCounts = getItemCounts(captureCandidates);
   const captureReviewCounts = getReviewCounts(captureCandidates);
-  const savedItemCounts = getItemCounts(tasks);
   const reviewCounts = getReviewCounts(tasks);
-  const calendarReadySavedCount = getCalendarReadyCount(tasks);
   const calendarNotExportedCount = tasks.filter((task) => task.calendarReady && !task.calendarExportedAt).length;
   const todayKey = toDateKey(now);
   const tomorrowKey = toDateKey(addDays(now, 1));
@@ -240,11 +215,8 @@ export default function App() {
       task.parsedDate === tomorrowKey ||
       task.due === 'tomorrow'
   ).length;
-  const capturedCount = tasks.filter((task) => task.source === 'capture').length;
-  const recentCaptureCount = tasks.filter((task) => task.source === 'capture').slice(0, 5).length;
   const hasSavedItems = activeTasks.length > 0;
   const selectedCaptureCandidates = captureCandidates.filter((candidate) => candidate.selected && candidate.title.trim());
-  const selectedCaptureCounts = getItemCounts(selectedCaptureCandidates);
   const selectedCaptureCalendarReadyCount = getCalendarReadyCount(selectedCaptureCandidates);
   const selectedCaptureReviewCounts = getReviewCounts(selectedCaptureCandidates);
 
@@ -737,11 +709,11 @@ export default function App() {
     }
 
     if (candidates.length === 0) {
-      showToast('No clear items yet. Try shorter lines or one note at a time.');
+      showToast('Nothing clear yet. Try shorter lines or one note at a time.');
       return;
     }
 
-    showToast(`Detected ${candidates.length} ${candidates.length === 1 ? 'item' : 'items'}.`);
+    showToast(`Found ${candidates.length} follow-up${candidates.length === 1 ? '' : 's'}.`);
   }
 
   function parseCaptureText() {
@@ -928,10 +900,10 @@ export default function App() {
           <div>
             <div className="eyebrow">Now</div>
             <h1>One thing to follow up on.</h1>
-            <p>{greeting.status}</p>
+            <p>Keep one useful follow-up moving.</p>
           </div>
           <button type="button" className="ghost-button" onClick={() => setActiveView('capture')}>
-            Capture more
+            Capture
           </button>
         </header>
 
@@ -945,29 +917,11 @@ export default function App() {
           onManualAdd={() => setManualEditorOpen(true)}
         />
 
-        <section className="summary-grid summary-grid--three">
-          <article className="summary-card summary-card--quiet">
-            <div className="eyebrow">Saved from capture</div>
-            <strong>{capturedCount}</strong>
-            <p>Follow-ups saved from pasted notes.</p>
-          </article>
-          <article className="summary-card summary-card--quiet">
-            <div className="eyebrow">Coming up</div>
-            <strong>{todayFollowUpsCount}</strong>
-            <p>Things worth checking soon.</p>
-          </article>
-          <article className="summary-card summary-card--quiet">
-            <div className="eyebrow">Needs review</div>
-            <strong>{reviewCounts.needsDateReviewCount + reviewCounts.needsTimeReviewCount}</strong>
-            <p>Review before you forget.</p>
-          </article>
-        </section>
-
         <section className="panel panel--quiet">
           <div className="section-heading">
             <div>
-              <h2>Keep moving</h2>
-              <p>The next few follow-ups.</p>
+              <h2>Up next</h2>
+              <p>A few more worth seeing.</p>
             </div>
             <button type="button" className="ghost-button" onClick={() => setActiveView('upcoming')}>
               View upcoming
@@ -989,7 +943,7 @@ export default function App() {
             ) : (
               <div className="empty-state">
                 <h3>Nothing else needs to compete right now.</h3>
-                <p>Capture another message or confirm one upcoming detail.</p>
+                <p>Capture something new when it shows up.</p>
               </div>
             )}
           </div>
@@ -1005,30 +959,12 @@ export default function App() {
           <div>
             <div className="eyebrow">Upcoming</div>
             <h1>What might you miss?</h1>
-            <p>Today, tomorrow, or still unclear.</p>
+            <p>Today, tomorrow, and anything unclear.</p>
           </div>
           <button type="button" className="ghost-button" onClick={() => setActiveView('capture')}>
-            Capture more
+            Capture
           </button>
         </header>
-
-        <section className="summary-grid summary-grid--three">
-          <article className="summary-card summary-card--quiet">
-            <div className="eyebrow">Today's follow-ups</div>
-            <strong>{todayFollowUpsCount}</strong>
-            <p>Worth checking first.</p>
-          </article>
-          <article className="summary-card summary-card--quiet">
-            <div className="eyebrow">Needs review</div>
-            <strong>{reviewCounts.needsDateReviewCount + reviewCounts.needsTimeReviewCount}</strong>
-            <p>Review before you forget.</p>
-          </article>
-          <article className="summary-card summary-card--quiet">
-            <div className="eyebrow">Calendar-ready</div>
-            <strong>{calendarNotExportedCount}</strong>
-            <p>Ready to add to your calendar.</p>
-          </article>
-        </section>
 
         <UpcomingPanel
           tasks={tasks}
@@ -1050,36 +986,18 @@ export default function App() {
         <header className="screen-header">
           <div>
             <div className="eyebrow">Tasks</div>
-            <h1>Saved items</h1>
-            <p>Saved follow-ups in one place.</p>
+            <h1>Saved follow-ups</h1>
+            <p>Your saved follow-ups.</p>
           </div>
           <div className="action-row">
             <button type="button" className="secondary-button" onClick={() => setManualEditorOpen(true)}>
               Add manually
             </button>
             <button type="button" className="ghost-button" onClick={() => setActiveView('capture')}>
-              Capture more
+              Capture
             </button>
           </div>
         </header>
-
-        <section className="summary-grid summary-grid--three">
-          <article className="summary-card summary-card--quiet">
-            <div className="eyebrow">Tasks</div>
-            <strong>{savedItemCounts.task}</strong>
-            <p>Action items saved in the app.</p>
-          </article>
-          <article className="summary-card summary-card--quiet">
-            <div className="eyebrow">Events</div>
-            <strong>{savedItemCounts.event}</strong>
-            <p>Ready to add to your calendar.</p>
-          </article>
-          <article className="summary-card summary-card--quiet">
-            <div className="eyebrow">Reminders</div>
-            <strong>{savedItemCounts.reminder}</strong>
-            <p>Follow-ups that should not disappear.</p>
-          </article>
-        </section>
 
         <div className="filter-bar">
           {FILTER_ITEMS.map((item) => (
@@ -1110,7 +1028,7 @@ export default function App() {
             ))
           ) : (
             <div className="empty-state">
-              <h3>No saved tasks yet.</h3>
+              <h3>No saved follow-ups yet.</h3>
             </div>
           )}
         </div>
@@ -1132,7 +1050,7 @@ export default function App() {
         <div className="section-heading">
           <div>
             <h2>{ITEM_LABEL[type]}</h2>
-            <p>{items.length} detected</p>
+            <p>{items.length} item{items.length === 1 ? '' : 's'}</p>
           </div>
         </div>
         <div className="stack">
@@ -1198,7 +1116,7 @@ export default function App() {
               rows={7}
               value={captureText}
               onChange={(event) => setCaptureText(event.target.value)}
-              placeholder="Example: Dinner with Mina on Saturday at 7 PM near Gangnam Station. Don't forget to book a table before Friday. Please send the revised report by Friday and call Alex at 3 PM tomorrow."
+              placeholder="Paste a message, meeting note, or plan..."
             />
           </label>
           <div className="action-row">
@@ -1208,9 +1126,11 @@ export default function App() {
             <button type="button" className="ghost-button" onClick={trySampleCapture}>
               Try sample
             </button>
-            <button type="button" className="ghost-button" onClick={clearCaptureComposer}>
-              Clear
-            </button>
+            {captureText.trim() ? (
+              <button type="button" className="ghost-button" onClick={clearCaptureComposer}>
+                Clear
+              </button>
+            ) : null}
           </div>
           <p className="subcopy">{brand.privacyLine}</p>
         </section>
@@ -1247,36 +1167,25 @@ export default function App() {
                 <h2>
                   Saved {captureOutcome.savedCount} follow-up{captureOutcome.savedCount === 1 ? '' : 's'}.
                 </h2>
-                <p>You don&apos;t have to retype it later.</p>
+                <p>
+                  {captureOutcome.calendarReadyCount} calendar-ready.{' '}
+                  {captureOutcome.needsDateReviewCount + captureOutcome.needsTimeReviewCount} need review.
+                </p>
               </div>
               <div className="action-row">
                 <button type="button" className="secondary-button" onClick={() => setActiveView('upcoming')}>
                   View upcoming
                 </button>
-                <button type="button" className="ghost-button" onClick={() => setActiveView('now')}>
-                  View what&apos;s next
-                </button>
                 <button type="button" className="ghost-button" onClick={clearCaptureComposer}>
-                  Capture another note
+                  Capture another
                 </button>
               </div>
             </div>
-            <div className="summary-grid summary-grid--three">
-              <article className="summary-card summary-card--quiet">
-                <div className="eyebrow">Calendar-ready</div>
-                <strong>{captureOutcome.calendarReadyCount}</strong>
-                <p>Ready to add to your calendar.</p>
-              </article>
-              <article className="summary-card summary-card--quiet">
-                <div className="eyebrow">Needs review</div>
-                <strong>{captureOutcome.needsDateReviewCount + captureOutcome.needsTimeReviewCount}</strong>
-                <p>Review before you forget.</p>
-              </article>
-              <article className="summary-card summary-card--quiet">
-                <div className="eyebrow">Saved</div>
-                <strong>{captureOutcome.savedCount}</strong>
-                <p>{getCaptureOutcomeText(captureOutcome.manualEntriesAvoidedApprox)}</p>
-              </article>
+            <div className="meta-row meta-row--summary">
+              <span>{getCaptureOutcomeText(captureOutcome.manualEntriesAvoidedApprox)}</span>
+              <span>{captureOutcome.savedTaskCount} tasks</span>
+              <span>{captureOutcome.savedEventCount} events</span>
+              <span>{captureOutcome.savedReminderCount} reminders</span>
             </div>
           </section>
         ) : null}
@@ -1284,11 +1193,15 @@ export default function App() {
         <section className="panel panel--quiet">
           <div className="section-heading">
             <div>
-              <h2>{captureCandidates.length > 0 ? `${captureCandidates.length} item${captureCandidates.length === 1 ? '' : 's'} found` : 'Detected items'}</h2>
+              <h2>
+                {captureCandidates.length > 0
+                  ? `${captureCandidates.length} follow-up${captureCandidates.length === 1 ? '' : 's'} found`
+                  : 'Follow-ups'}
+              </h2>
               <p>
                 {captureCandidates.length > 0
                   ? `${getCalendarReadyCount(captureCandidates)} calendar-ready. ${captureReviewCounts.needsDateReviewCount + captureReviewCounts.needsTimeReviewCount} need review.`
-                  : 'Paste something messy. We’ll clean it up.'}
+                  : "Paste something messy. We'll clean it up."}
               </p>
             </div>
           </div>
@@ -1297,10 +1210,7 @@ export default function App() {
             <>
               <div className="capture-save-bar">
                 <div>
-                  <strong>{selectedCaptureCandidates.length} selected</strong>
-                  <p>
-                    {selectedCaptureCounts.task} tasks, {selectedCaptureCounts.event} events, {selectedCaptureCounts.reminder} reminders
-                  </p>
+                  <strong>{selectedCaptureCandidates.length} ready to save</strong>
                   <p>
                     {selectedCaptureCalendarReadyCount} calendar-ready. {selectedCaptureReviewCounts.needsDateReviewCount + selectedCaptureReviewCounts.needsTimeReviewCount} need review.
                   </p>
@@ -1318,7 +1228,7 @@ export default function App() {
             </>
           ) : (
             <div className="empty-state">
-              <h3>No extraction yet.</h3>
+              <h3>Nothing found yet.</h3>
               <p>Paste something messy. We&apos;ll clean it up.</p>
             </div>
           )}
@@ -1334,13 +1244,13 @@ export default function App() {
           <div>
             <div className="eyebrow">Settings</div>
             <h1>Settings</h1>
-            <p>Local-first privacy and data.</p>
+            <p>Local-first privacy.</p>
           </div>
         </header>
 
         <section className="panel panel--quiet">
           <h2>Privacy</h2>
-          <p>Only what you paste. No account. No server.</p>
+          <p>Only what you paste. No account.</p>
         </section>
 
         {qaMode ? (
@@ -1397,17 +1307,17 @@ export default function App() {
     <div className="app-shell">
       <div className="device-frame">
         <div className="app-surface">
-          <main className="content">{renderView()}</main>
-          <BottomNav activeView={activeView} onChange={setActiveView} />
+          <main className="app-main">{renderView()}</main>
         </div>
       </div>
+      <BottomNav activeView={activeView} onChange={setActiveView} />
 
       {manualEditorOpen ? (
         <div className="modal-backdrop" role="presentation" onClick={() => setManualEditorOpen(false)}>
           <div className="modal-sheet" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
             <TaskEditor
               title="Add manually"
-              description="Use this when nothing useful came out of capture."
+              description="Use this when capture misses something."
               submitLabel="Save manual item"
               onSubmit={(draft) => addTask(draft)}
               onCancel={() => setManualEditorOpen(false)}
@@ -1422,7 +1332,7 @@ export default function App() {
             <TaskEditor
               initialValue={editingTask}
               title="Edit item"
-              description="Tighten the details, then save."
+              description="Change what you need, then save."
               submitLabel="Save changes"
               onSubmit={(draft) => updateTask(editingTask.id, draft)}
               onCancel={() => setEditingTask(null)}
@@ -1435,3 +1345,4 @@ export default function App() {
     </div>
   );
 }
+

@@ -55,6 +55,32 @@ function renderTaskList(
   );
 }
 
+function renderGroup(
+  title: string,
+  items: Task[],
+  onEdit: (task: Task) => void,
+  onComplete: ((taskId: string) => void) | undefined,
+  onDelete: ((taskId: string) => void) | undefined,
+  onDownloadICS: (task: Task) => void,
+  onCopyDetails: (task: Task) => void
+) {
+  if (items.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="upcoming-group">
+      <div className="section-heading">
+        <div>
+          <h2>{title}</h2>
+          <p>{items.length} item{items.length === 1 ? '' : 's'}</p>
+        </div>
+      </div>
+      {renderTaskList(items, onEdit, onComplete, onDelete, onDownloadICS, onCopyDetails)}
+    </section>
+  );
+}
+
 export function UpcomingPanel({
   tasks,
   now,
@@ -118,6 +144,7 @@ export function UpcomingPanel({
   });
 
   const laterOrNoDate = activeItems.filter((task) => !usedIds.has(task.id));
+  const visibleGroupCount = [today, tomorrow, thisWeek, needsReview, laterOrNoDate].filter((group) => group.length > 0).length;
 
   useEffect(() => {
     if (viewedRef.current) {
@@ -130,61 +157,19 @@ export function UpcomingPanel({
 
   return (
     <section className="panel panel--quiet">
-      <div className="section-heading">
-        <div>
-          <h2>What might you miss?</h2>
+      {visibleGroupCount === 0 ? (
+        <div className="empty-state">
+          <h3>Nothing to chase right now.</h3>
         </div>
-      </div>
-
-      <section className="upcoming-group">
-        <div className="section-heading">
-          <div>
-            <h2>Today</h2>
-            <p>{today.length} item{today.length === 1 ? '' : 's'}</p>
-          </div>
-        </div>
-        {renderTaskList(today, onEdit, onComplete, onDelete, onDownloadICS, onCopyDetails)}
-      </section>
-
-      <section className="upcoming-group">
-        <div className="section-heading">
-          <div>
-            <h2>Tomorrow</h2>
-            <p>{tomorrow.length} item{tomorrow.length === 1 ? '' : 's'}</p>
-          </div>
-        </div>
-        {renderTaskList(tomorrow, onEdit, onComplete, onDelete, onDownloadICS, onCopyDetails)}
-      </section>
-
-      <section className="upcoming-group">
-        <div className="section-heading">
-          <div>
-            <h2>This week</h2>
-            <p>{thisWeek.length} item{thisWeek.length === 1 ? '' : 's'}</p>
-          </div>
-        </div>
-        {renderTaskList(thisWeek, onEdit, onComplete, onDelete, onDownloadICS, onCopyDetails)}
-      </section>
-
-      <section className="upcoming-group">
-        <div className="section-heading">
-          <div>
-            <h2>Needs review</h2>
-            <p>{needsReview.length} item{needsReview.length === 1 ? '' : 's'}</p>
-          </div>
-        </div>
-        {renderTaskList(needsReview, onEdit, onComplete, onDelete, onDownloadICS, onCopyDetails)}
-      </section>
-
-      <section className="upcoming-group">
-        <div className="section-heading">
-          <div>
-            <h2>Later / No date</h2>
-            <p>{laterOrNoDate.length} item{laterOrNoDate.length === 1 ? '' : 's'}</p>
-          </div>
-        </div>
-        {renderTaskList(laterOrNoDate, onEdit, onComplete, onDelete, onDownloadICS, onCopyDetails)}
-      </section>
+      ) : (
+        <>
+          {renderGroup('Today', today, onEdit, onComplete, onDelete, onDownloadICS, onCopyDetails)}
+          {renderGroup('Tomorrow', tomorrow, onEdit, onComplete, onDelete, onDownloadICS, onCopyDetails)}
+          {renderGroup('This week', thisWeek, onEdit, onComplete, onDelete, onDownloadICS, onCopyDetails)}
+          {renderGroup('Needs review', needsReview, onEdit, onComplete, onDelete, onDownloadICS, onCopyDetails)}
+          {renderGroup('Later', laterOrNoDate, onEdit, onComplete, onDelete, onDownloadICS, onCopyDetails)}
+        </>
+      )}
     </section>
   );
 }

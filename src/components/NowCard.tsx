@@ -31,10 +31,10 @@ export function NowCard({
       <section className="now-card empty">
         <div className="eyebrow">Now</div>
         <h2>Nothing urgent right now.</h2>
-        <p>Paste something messy. We&apos;ll clean it up.</p>
+        <p>Paste a message. We&apos;ll find the follow-ups.</p>
         <div className="empty-actions">
           <button type="button" className="primary-button" onClick={onOpenCapture}>
-            Go to Capture
+            Capture
           </button>
           <button type="button" className="ghost-button" onClick={onManualAdd}>
             Add manually
@@ -51,7 +51,6 @@ export function NowCard({
       {reasons[0] ? <p className="now-card__lead">{reasons[0]}</p> : null}
       <div className="now-card__meta">
         <span>{TYPE_LABEL[task.itemType]}</span>
-        <span>{task.durationMinutes} min</span>
         {task.due !== 'none' ? <span>{getDueLabel(task.due)}</span> : null}
         {task.parsedDate ? <span>{formatParsedDate(task.parsedDate)}</span> : task.dateText ? <span>{task.dateText}</span> : null}
         {task.parsedTime ? <span>{formatParsedTime(task.parsedTime)}</span> : task.timeText ? <span>{task.timeText}</span> : null}
@@ -79,7 +78,6 @@ export function NowCard({
           Not today
         </button>
       </div>
-      <p className="subcopy">Clear it, prep it, or confirm it.</p>
     </section>
   );
 }

@@ -29,6 +29,7 @@ export function CaptureCandidateCard({
   const chips = [candidate.personText, candidate.locationText].filter((item): item is string => Boolean(item));
   const needsReviewLabel = candidate.needsDateReview ? 'Needs date' : candidate.needsTimeReview ? 'Needs time' : null;
   const calendarLabel = candidate.calendarReady ? 'Calendar-ready' : 'Add to calendar manually';
+  const showPeopleFields = candidate.itemType !== 'task' || Boolean(candidate.personText || candidate.locationText);
 
   return (
     <article className={`task-card capture-card ${candidate.selected ? '' : 'is-unselected'}`}>
@@ -72,34 +73,26 @@ export function CaptureCandidateCard({
           </label>
         </div>
 
-        <div className="form-grid">
-          <label className="field field--tight">
-            <span>With</span>
-            <input
-              value={candidate.personText ?? ''}
-              onChange={(event) => onChange(candidate.id, { personText: event.target.value })}
-              placeholder="Person or team"
-            />
-          </label>
-          <label className="field field--tight">
-            <span>Where</span>
-            <input
-              value={candidate.locationText ?? ''}
-              onChange={(event) => onChange(candidate.id, { locationText: event.target.value })}
-              placeholder="Zoom, cafe, office"
-            />
-          </label>
-        </div>
-
-        <label className="field field--tight">
-          <span>Note</span>
-          <textarea
-            rows={2}
-            value={candidate.memo}
-            onChange={(event) => onChange(candidate.id, { memo: event.target.value })}
-            placeholder="Optional context"
-          />
-        </label>
+        {showPeopleFields ? (
+          <div className="form-grid">
+            <label className="field field--tight">
+              <span>With</span>
+              <input
+                value={candidate.personText ?? ''}
+                onChange={(event) => onChange(candidate.id, { personText: event.target.value })}
+                placeholder="Person or team"
+              />
+            </label>
+            <label className="field field--tight">
+              <span>Where</span>
+              <input
+                value={candidate.locationText ?? ''}
+                onChange={(event) => onChange(candidate.id, { locationText: event.target.value })}
+                placeholder="Zoom, cafe, office"
+              />
+            </label>
+          </div>
+        ) : null}
 
         {chips.length > 0 ? (
           <div className="meta-row">

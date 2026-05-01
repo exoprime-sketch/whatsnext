@@ -1,10 +1,12 @@
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 
 const ROOT = process.cwd();
 const HANGUL = /[\u1100-\u11ff\u3130-\u318f\uac00-\ud7af]/u;
 const FORBIDDEN = [
   /PWA reality/i,
+  /\bFounder QA\b/i,
+  /\bnative\b/i,
   /native share/i,
   /share[- ]sheet/i,
   /Apple Developer/i,
@@ -12,24 +14,41 @@ const FORBIDDEN = [
   /test capture/i,
   /native direction/i,
   /PWA limits/i,
-  /calendar save comes later/i
+  /limitations?/i,
+  /can come later/i,
+  /calendar save comes later/i,
+  /prototype/i,
+  /closed beta/i,
+  /maker-facing/i
 ];
 
 const uiFiles = [
   'src/App.tsx',
   'src/components/AlarmSelector.tsx',
   'src/components/BottomNav.tsx',
+  'src/components/AppHeader.tsx',
+  'src/components/BrandMark.tsx',
   'src/components/CaptureCandidateCard.tsx',
   'src/components/EventExportPanel.tsx',
   'src/components/NowCard.tsx',
   'src/components/TaskCard.tsx',
   'src/components/TaskEditor.tsx',
   'src/components/UpcomingPanel.tsx',
+  'src/lib/brand.ts',
   'src/data/sampleTasks.ts',
   'public/manifest.webmanifest',
   'index.html'
 ];
 const textExtensions = new Set(['.ts', '.tsx', '.css', '.html', '.webmanifest', '.svg', '.json', '.md']);
+const requiredPaths = [
+  'src/components/AppHeader.tsx',
+  'src/components/BrandMark.tsx',
+  'src/lib/brand.ts',
+  'public/icon.svg',
+  'public/apple-touch-icon.png',
+  'public/icon-192.png',
+  'public/icon-512.png'
+];
 
 function walk(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -96,6 +115,12 @@ const styles = read('src/styles.css');
 
 if (!/\.bottom-nav\s*\{[\s\S]*?position:\s*fixed;/m.test(styles)) {
   issues.push('The .bottom-nav CSS block must include position: fixed.');
+}
+
+for (const filePath of requiredPaths) {
+  if (!existsSync(path.join(ROOT, filePath))) {
+    issues.push(`Required launch file is missing: ${filePath}`);
+  }
 }
 
 const manifest = JSON.parse(read('public/manifest.webmanifest'));

@@ -53,7 +53,6 @@ export function TaskCard({
     metaItems.push(task.locationText);
   }
 
-  const delayedCount = task.snoozeCount + task.negativeFeedbackCount;
   const reviewLabel = task.needsDateReview ? 'Needs date' : task.needsTimeReview ? 'Needs time' : null;
   const showExportPanel = Boolean(onCopyDetails && onDownloadICS);
 
@@ -84,11 +83,6 @@ export function TaskCard({
         ) : null}
         {task.memo ? <p className="task-card__memo">{task.memo}</p> : null}
         {task.alarmLabel && task.alarmEnabled ? <p className="task-card__insight">Alarm: {task.alarmLabel}</p> : null}
-        {delayedCount > 0 ? (
-          <p className="task-card__insight">
-            Delayed {delayedCount} {delayedCount === 1 ? 'time' : 'times'}
-          </p>
-        ) : null}
         {showExportPanel ? (
           <EventExportPanel
             item={task}
