@@ -987,7 +987,7 @@ export default function App() {
           <div>
             <div className="eyebrow">Tasks</div>
             <h1>Saved follow-ups</h1>
-            <p>Your saved follow-ups.</p>
+            <p>Captured and added manually.</p>
           </div>
           <div className="action-row">
             <button type="button" className="secondary-button" onClick={() => setManualEditorOpen(true)}>
@@ -1135,30 +1135,23 @@ export default function App() {
           <p className="subcopy">{brand.privacyLine}</p>
         </section>
 
-        <section className="panel panel--quiet">
-          <div className="section-heading">
-            <div>
-              <h2>What might you miss?</h2>
-            </div>
-            {hasSavedItems ? (
+        {hasSavedItems ? (
+          <section className="panel panel--quiet">
+            <div className="section-heading">
+              <div>
+                <h2>Your follow-ups</h2>
+              </div>
               <button type="button" className="ghost-button" onClick={() => setActiveView('upcoming')}>
                 View upcoming
               </button>
-            ) : null}
-          </div>
-          {hasSavedItems ? (
+            </div>
             <div className="meta-row meta-row--summary">
               <span>Today {todayFollowUpsCount}</span>
               <span>Needs review {reviewCounts.needsDateReviewCount + reviewCounts.needsTimeReviewCount}</span>
               <span>Calendar-ready {calendarNotExportedCount}</span>
             </div>
-          ) : (
-            <div className="empty-state">
-              <h3>No follow-ups yet.</h3>
-              <p>Paste something messy. We&apos;ll clean it up.</p>
-            </div>
-          )}
-        </section>
+          </section>
+        ) : null}
 
         {captureOutcome ? (
           <section className="panel panel--success">
@@ -1190,49 +1183,33 @@ export default function App() {
           </section>
         ) : null}
 
-        <section className="panel panel--quiet">
-          <div className="section-heading">
-            <div>
-              <h2>
-                {captureCandidates.length > 0
-                  ? `${captureCandidates.length} follow-up${captureCandidates.length === 1 ? '' : 's'} found`
-                  : 'Follow-ups'}
-              </h2>
-              <p>
-                {captureCandidates.length > 0
-                  ? `${getCalendarReadyCount(captureCandidates)} calendar-ready. ${captureReviewCounts.needsDateReviewCount + captureReviewCounts.needsTimeReviewCount} need review.`
-                  : "Paste something messy. We'll clean it up."}
-              </p>
-            </div>
-          </div>
-
-          {captureCandidates.length > 0 ? (
-            <>
-              <div className="capture-save-bar">
-                <div>
-                  <strong>{selectedCaptureCandidates.length} ready to save</strong>
-                  <p>
-                    {selectedCaptureCalendarReadyCount} calendar-ready. {selectedCaptureReviewCounts.needsDateReviewCount + selectedCaptureReviewCounts.needsTimeReviewCount} need review.
-                  </p>
-                </div>
-                <button type="button" className="primary-button" onClick={saveCaptureCandidates}>
-                  Save selected
-                </button>
+        {captureCandidates.length > 0 ? (
+          <section className="panel panel--quiet">
+            <div className="section-heading">
+              <div>
+                <h2>{captureCandidates.length} follow-up{captureCandidates.length === 1 ? '' : 's'} found</h2>
+                <p>{getCalendarReadyCount(captureCandidates)} calendar-ready. {captureReviewCounts.needsDateReviewCount + captureReviewCounts.needsTimeReviewCount} need review.</p>
               </div>
-              <div className="stack">
-                {renderCaptureGroup('task')}
-                {renderCaptureGroup('event')}
-                {renderCaptureGroup('reminder')}
-                {renderNeedsReviewGroup()}
-              </div>
-            </>
-          ) : (
-            <div className="empty-state">
-              <h3>Nothing found yet.</h3>
-              <p>Paste something messy. We&apos;ll clean it up.</p>
             </div>
-          )}
-        </section>
+            <div className="capture-save-bar">
+              <div>
+                <strong>{selectedCaptureCandidates.length} ready to save</strong>
+                <p>
+                  {selectedCaptureCalendarReadyCount} calendar-ready. {selectedCaptureReviewCounts.needsDateReviewCount + selectedCaptureReviewCounts.needsTimeReviewCount} need review.
+                </p>
+              </div>
+              <button type="button" className="primary-button" onClick={saveCaptureCandidates}>
+                Save selected
+              </button>
+            </div>
+            <div className="stack">
+              {renderCaptureGroup('task')}
+              {renderCaptureGroup('event')}
+              {renderCaptureGroup('reminder')}
+              {renderNeedsReviewGroup()}
+            </div>
+          </section>
+        ) : null}
       </section>
     );
   }

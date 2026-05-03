@@ -11,7 +11,8 @@
     "check:integrity": "node ./scripts/ci/check-code-integrity.mjs",
     "check:ui": "node ./scripts/ci/check-ui-readiness.mjs",
     "check:release": "node ./scripts/ci/check-release-readiness.mjs",
-    "check:release:strict": "node ./scripts/ci/check-release-readiness.mjs --strict"
+    "check:release:strict": "node ./scripts/ci/check-release-readiness.mjs --strict",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "react": "^18.3.1",
