@@ -161,8 +161,8 @@ final class MVPAppViewModel: ObservableObject {
 
     func showToast(_ message: String) {
         toastMessage = message
-        Swift.Task {
-            try? await Swift.Task.sleep(for: .seconds(2.5))
+        _Concurrency.Task {
+            try? await _Concurrency.Task.sleep(for: .seconds(2.5))
             if toastMessage == message { toastMessage = nil }
         }
     }

@@ -52,7 +52,7 @@ struct SettingsView: View {
                     icon: "calendar",
                     granted: vm.permissionManager.hasCalendarAccess
                 ) {
-                    Swift.Task { await vm.permissionManager.requestCalendarAccess() }
+                    _Concurrency.Task { await vm.permissionManager.requestCalendarAccess() }
                 }
 
                 Divider()
@@ -62,7 +62,7 @@ struct SettingsView: View {
                     icon: "bell",
                     granted: vm.permissionManager.hasRemindersAccess
                 ) {
-                    Swift.Task { await vm.permissionManager.requestRemindersAccess() }
+                    _Concurrency.Task { await vm.permissionManager.requestRemindersAccess() }
                 }
             }
         }
