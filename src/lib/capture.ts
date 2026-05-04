@@ -184,6 +184,7 @@ function normalizeActionText(fragment: string) {
 function stripSchedulingContext(fragment: string) {
   return normalizeActionText(
     fragment
+      .replace(/^(?:meeting notes?|update|reminder|note|fyi|heads[\s-]up|note to self|task|action items?|todos?|follow[\s-]?ups?|status)\s*:\s*/gi, '')
       .replace(/\b(today|tomorrow|tonight|this morning|this afternoon|this evening)\b/gi, ' ')
       .replace(/\b(this week|next week)(?:'s)?\b/gi, ' ')
       .replace(/\b(next\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))\b/gi, ' ')
