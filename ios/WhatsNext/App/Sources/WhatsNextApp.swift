@@ -3,16 +3,18 @@ import SwiftUI
 @main
 struct WhatsNextApp: App {
     @Environment(\.scenePhase) private var scenePhase
-    @StateObject private var viewModel = AppViewModel()
+
+    // Legacy view model kept for RootView (existing code, not deleted)
+    @StateObject private var legacyViewModel = AppViewModel()
 
     var body: some Scene {
         WindowGroup {
-            RootView(viewModel: viewModel)
-                .onOpenURL { viewModel.handleDeepLink($0) }
+            // MVP native product flow — Today/Calendar/Import/Inbox/Settings
+            MVPRootView()
         }
         .onChange(of: scenePhase) { _, newValue in
             if newValue == .active {
-                viewModel.refreshForForeground()
+                legacyViewModel.refreshForForeground()
             }
         }
     }

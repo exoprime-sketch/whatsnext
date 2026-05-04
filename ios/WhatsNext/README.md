@@ -1,29 +1,172 @@
-# 오늘하나 iOS
+# What's Next — Native iOS MVP
 
-이 폴더는 App Store 출시를 위한 SwiftUI 네이티브 앱 소스와 위젯 구조입니다.
+## Product direction
 
-## 구성
+The main product is now the native iOS app.
 
-- `Shared/`: 앱과 위젯이 함께 쓰는 모델, 저장소, 추천 엔진, 캡처 파서
-- `App/`: SwiftUI 앱 소스, 온보딩, 알림, 설정, 탭 UI
-- `Widget/`: 홈 화면 Small Widget
-- `ShareExtension/`: v1.1용 공유 확장 TODO 구조
+**Core promise:** Don't type your schedule. Drop a screenshot, file, or recording. Confirm once. Done.
 
-## 생성 방법
+**Flow:**  
+Input evidence → Extract candidates → Review before saving → Choose alarm → Save to Calendar or Reminders → Show in Today and Calendar
 
-1. macOS에서 Xcode와 XcodeGen을 설치합니다.
-2. 이 폴더에서 `xcodegen generate`를 실행합니다.
-3. 생성된 `WhatsNext.xcodeproj`를 Xcode로 엽니다.
-4. `PRODUCT_BUNDLE_IDENTIFIER`, Team, App Group 값을 실제 값으로 맞춥니다.
-5. `BUILD_ON_MAC.md`와 `ReleaseConfig.example.md`를 따라 placeholder를 교체합니다.
+The PWA (`/src`) remains as a reference implementation and is not deleted.
 
-## 현재 상태
+---
 
-- SwiftUI 앱 소스 생성 완료
-- 위젯 타임라인 구조 생성 완료
-- UserNotifications 기반 로컬 알림 구조 생성 완료
-- App Store 제출 문서 초안 생성 완료
-- App Icon asset 세트 및 생성 스크립트 추가 완료
-- GitHub Actions용 PWA build / iOS simulator build CI 워크플로 추가 완료
-- `scripts/ci/check-release-readiness.mjs`로 제출 전 blocker를 경고 또는 실패로 분리해 점검 가능
-- 현재 작업 환경이 Windows라 Xcode 빌드는 이 자리에서 검증하지 못했습니다
+## Screens
+
+| Tab | File | Status |
+|-----|------|--------|
+| Today | `App/Sources/TodayView.swift` | Implemented |
+| Calendar | `App/Sources/CalendarView.swift` | Implemented |
+| Import | `App/Sources/ImportView.swift` | Implemented |
+| Inbox | `App/Sources/InboxView.swift` | Implemented |
+| Settings | `App/Sources/SettingsView.swift` | Implemented |
+
+### Import sub-screens
+
+| Screen | File | Status |
+|--------|------|--------|
+| Screenshot → OCR | `App/Sources/ScreenshotImportView.swift` | Implemented (Vision) |
+| Meeting file | `App/Sources/FileImportView.swift` | Implemented (.txt/.md) |
+| Text paste | `App/Sources/TextImportView.swift` | Implemented |
+| Recording | — | Scaffolded — not yet functional |
+
+---
+
+## Models (`Shared/Models/`)
+
+| File | Contents |
+|------|----------|
+| `AlarmOption.swift` | Alarm timing enum with `offsetSeconds` |
+| `ImportSource.swift` | `ImportSourceType`: screenshot / meetingFile / recording / text |
+| `ExtractedCandidate.swift` | `ExtractedCandidate` struct + `CandidateItemType` / `CandidateTarget` / `CandidateConfidence` |
+| `ScheduleItem.swift` | Saved item referencing optional EK identifiers |
+
+---
+
+## Services (`Shared/Services/`)
+
+> **Widget note:** `Shared/Services/` is excluded from the Widget target in `project.yml` because EventKit, Vision, and Speech are unavailable in app extensions.
+
+| File | Framework | Status |
+|------|-----------|--------|
+| `EventKitPermissionManager.swift` | EventKit | Implemented — write-only calendar, full reminders |
+| `CalendarService.swift` | EventKit | Implemented — creates `EKEvent` with alarm |
+| `ReminderService.swift` | EventKit | Implemented — creates `EKReminder` with due date |
+| `OCRService.swift` | Vision | Implemented — `VNRecognizeTextRequest`, accurate mode, on-device |
+| `SpeechTranscriptionService.swift` | Speech | Scaffolded — authorization + file transcription wired; live recording is a TODO |
+| `CandidateExtractionService.swift` | Foundation | Implemented — rule-based parser, replaceable |
+
+---
+
+## View model
+
+`App/Sources/MVPAppViewModel.swift`
+
+Holds: candidates, schedule items, permission manager, extraction, save-to-EventKit flow, sample data, tab navigation, toast.
+
+---
+
+## Design system
+
+`App/Sources/WNDesignSystem.swift`
+
+| Token | Value |
+|-------|-------|
+| Background | `#F7F4EF` |
+| Surface | `#FFFFFF` |
+| Accent | `#5B6CFF` |
+| Text | `#1E1C1A` |
+| Muted | `#706A63` |
+
+Components: `WNCard`, `WNPrimaryButtonStyle`, `WNSecondaryButtonStyle`, `TypeBadge`, `ReviewBadge`, `TargetChip`.
+
+---
+
+## EventKit notes
+
+- **Calendar:** uses `requestWriteOnlyAccessToEvents()` (iOS 17+). The app never reads the calendar — only adds events.
+- **Reminders:** uses `requestFullAccessToReminders()` (iOS 17+).
+- Both services share the `EKEventStore` from `EventKitPermissionManager`.
+- `NSCalendarsWriteOnlyAccessUsageDescription` and `NSRemindersUsageDescription` are in `App/Info.plist`.
+
+---
+
+## Vision OCR notes
+
+- `OCRService` uses `VNRecognizeTextRequest` with `.accurate` recognition level.
+- Processing is entirely on-device — no data leaves the device.
+- `NSPhotoLibraryUsageDescription` is in `App/Info.plist`.
+- `ScreenshotImportView` uses `PhotosPicker` (PhotosUI framework).
+
+---
+
+## Speech notes
+
+- `SpeechTranscriptionService` handles `SFSpeechRecognizer` authorization and transcribes local audio files via `SFSpeechURLRecognitionRequest`.
+- Live microphone recording is **not implemented** — a TODO comment marks the extension point.
+- `NSSpeechRecognitionUsageDescription` and `NSMicrophoneUsageDescription` are in `App/Info.plist`.
+- The recording card in `ImportView` is visible but non-interactive.
+
+---
+
+## What is implemented vs scaffolded
+
+| Feature | State |
+|---------|-------|
+| Today view with agenda + NowCard | Implemented |
+| Calendar month grid + day agenda | Implemented |
+| Import card grid (4 types) | Implemented |
+| File import (.txt/.md) | Implemented |
+| Screenshot import + Vision OCR | Implemented |
+| Text paste + extraction | Implemented |
+| Inbox grouped by review status | Implemented |
+| ReviewCandidatesSheet | Implemented |
+| Alarm picker per candidate | Implemented |
+| Target picker (Calendar/Reminders/Local) | Implemented |
+| EventKit calendar save | Implemented |
+| EventKit reminder save | Implemented |
+| Sample data (visible on first launch) | Implemented |
+| Design system (colors, cards, buttons) | Implemented |
+| Settings + permission rows | Implemented |
+| Rule-based candidate extraction | Implemented |
+| Live recording transcription | Scaffolded (TODO) |
+| Local persistence (UserDefaults/JSON) | Not yet — in-memory only |
+| PDF / DOCX import | Not yet |
+| Widget update after save | Not yet |
+
+---
+
+## How to generate the Xcode project
+
+Requires [XcodeGen](https://github.com/yonaskolb/XcodeGen) 2.45.4+ and macOS.
+
+```bash
+cd ios/WhatsNext
+xcodegen generate
+open WhatsNext.xcodeproj
+```
+
+Set your Development Team in Xcode (or replace `YOUR_TEAM_ID` in `project.yml`).
+
+---
+
+## How to build
+
+1. Generate project (above)
+2. Open `WhatsNext.xcodeproj` in Xcode 16+
+3. Select `WhatsNextApp` scheme, iPhone 17 simulator or physical device
+4. Product → Build (Cmd+B)
+
+iOS compile was **not run** in this session (Windows environment, no Xcode). All Swift files target iOS 17 SDK and are written to compile correctly, but must be verified on macOS.
+
+---
+
+## Next step for native iOS testing
+
+1. On a Mac: `cd ios/WhatsNext && xcodegen generate`
+2. Open in Xcode 16, select iPhone simulator (iOS 17+)
+3. Build and run
+4. Verify: Today opens with sample items, Import shows 4 cards, tap Text → paste → Extract → Inbox groups appear → Save → Today shows items
+5. On device: grant Calendar + Reminders in Settings tab, confirm items appear in Calendar.app and Reminders.app

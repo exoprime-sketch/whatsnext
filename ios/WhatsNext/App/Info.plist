@@ -41,6 +41,21 @@
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 	</array>
+	<!-- MVP: required for Vision OCR screenshot import -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Select a screenshot to extract your schedule from it.</string>
+	<!-- MVP: required for Speech transcription (audio file import) -->
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Transcribe audio files to extract schedule items.</string>
+	<!-- MVP: required for future live microphone recording -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Record a voice memo to extract schedule items.</string>
+	<!-- MVP: required for EventKit Calendar write access -->
+	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
+	<string>Save confirmed events directly to your calendar.</string>
+	<!-- MVP: required for Reminders access -->
+	<key>NSRemindersUsageDescription</key>
+	<string>Save confirmed reminders directly to your Reminders app.</string>
 	<key>WHATSNEXT_APP_GROUP_IDENTIFIER</key>
 	<string>$(WHATSNEXT_APP_GROUP_IDENTIFIER)</string>
 	<key>WHATSNEXT_OPERATOR_NAME</key>

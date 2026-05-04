@@ -50,11 +50,19 @@ targets:
         codeSign: false
         copy:
           destination: plugins
+      # MVP framework dependencies (auto-linked via Swift import on iOS 17+)
+      - sdk: EventKit.framework
+      - sdk: Vision.framework
+      - sdk: Speech.framework
+      - sdk: Photos.framework
   WhatsNextWidgetExtension:
     type: app-extension
     platform: iOS
     sources:
+      # Exclude Services/ — EventKit/Vision/Speech are unavailable in extensions
       - path: Shared
+        excludes:
+          - Services
       - path: Widget/Sources
     resources:
       - path: Widget/Resources
