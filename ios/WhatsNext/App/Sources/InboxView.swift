@@ -82,7 +82,7 @@ struct InboxView: View {
                 }
                 Spacer()
                 Button {
-                    Task { await vm.saveSelected() }
+                    Swift.Task { await vm.saveSelected() }
                 } label: {
                     Text("Save selected")
                 }

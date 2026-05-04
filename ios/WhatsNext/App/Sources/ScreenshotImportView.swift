@@ -26,7 +26,7 @@ struct ScreenshotImportView: View {
                 }
                 .padding(.horizontal)
                 .onChange(of: pickerItem) { _, item in
-                    Task {
+                    Swift.Task {
                         ocr.reset()
                         if let data = try? await item?.loadTransferable(type: Data.self),
                            let image = UIImage(data: data) {
@@ -38,7 +38,7 @@ struct ScreenshotImportView: View {
                 // Extract button
                 if selectedImage != nil {
                     Button {
-                        Task {
+                        Swift.Task {
                             guard let image = selectedImage else { return }
                             await ocr.recognizeText(from: image)
                             if !ocr.recognizedText.isEmpty {

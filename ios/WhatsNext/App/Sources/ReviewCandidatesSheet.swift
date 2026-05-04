@@ -42,7 +42,7 @@ struct ReviewCandidatesSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
-                        Task { await vm.saveSelected() }
+                        Swift.Task { await vm.saveSelected() }
                     } label: {
                         Text("Save \(selectedCount > 0 ? "\(selectedCount)" : "")")
                             .fontWeight(.semibold)
