@@ -6,7 +6,7 @@ export type TimeBand = 'morning' | 'afternoon' | 'evening' | 'night';
 export type TaskFeedbackType = 'snooze' | 'skipToday' | 'negative';
 export type TaskSource = 'manual' | 'capture' | 'sample';
 export type ItemType = 'task' | 'event' | 'reminder';
-export type AppView = 'capture' | 'upcoming' | 'now' | 'tasks' | 'settings';
+export type AppView = 'today' | 'calendar' | 'import' | 'inbox' | 'settings';
 export type TaskFilter = 'all' | 'today' | 'completed' | 'postponed';
 export type ConfidenceLevel = 'low' | 'medium' | 'high';
 

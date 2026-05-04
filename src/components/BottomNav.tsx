@@ -1,10 +1,10 @@
 import type { AppView } from '../types';
 
 const ITEMS: Array<{ key: AppView; label: string }> = [
-  { key: 'capture', label: 'Capture' },
-  { key: 'upcoming', label: 'Upcoming' },
-  { key: 'now', label: 'Now' },
-  { key: 'tasks', label: 'Tasks' },
+  { key: 'today', label: 'Today' },
+  { key: 'calendar', label: 'Calendar' },
+  { key: 'import', label: 'Import' },
+  { key: 'inbox', label: 'Inbox' },
   { key: 'settings', label: 'Settings' }
 ];
 

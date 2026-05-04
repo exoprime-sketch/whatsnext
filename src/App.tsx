@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AppHeader } from './components/AppHeader';
 import { BottomNav } from './components/BottomNav';
 import { CaptureCandidateCard } from './components/CaptureCandidateCard';
@@ -52,6 +52,8 @@ import type {
   TaskFilter
 } from './types';
 
+type ImportMode = 'file' | 'screenshot' | 'recording' | 'text';
+
 const COMPLETE_MESSAGES = ['Nice. One thing done.', 'That counts.', 'Good. Keep moving.'];
 
 const FILTER_ITEMS: Array<{ value: TaskFilter; label: string }> = [
@@ -67,6 +69,8 @@ const ITEM_LABEL = {
   reminder: 'Reminders'
 } as const;
 
+const CAL_DOW = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
 interface CaptureOutcome {
   detectedCount: number;
   savedCount: number;
@@ -81,11 +85,7 @@ interface CaptureOutcome {
 
 function getCompleteMessage(date: Date, nextTaskTitle?: string) {
   const base = COMPLETE_MESSAGES[date.getTime() % COMPLETE_MESSAGES.length];
-
-  if (!nextTaskTitle) {
-    return base;
-  }
-
+  if (!nextTaskTitle) return base;
   return `${base} Up next: ${nextTaskTitle}.`;
 }
 
@@ -132,31 +132,18 @@ function getItemCounts<T extends { itemType: ItemType }>(items: T[]) {
       counts[item.itemType] += 1;
       return counts;
     },
-    {
-      task: 0,
-      event: 0,
-      reminder: 0
-    } satisfies Record<ItemType, number>
+    { task: 0, event: 0, reminder: 0 } satisfies Record<ItemType, number>
   );
 }
 
 function getReviewCounts<T extends { needsDateReview?: boolean; needsTimeReview?: boolean }>(items: T[]) {
   return items.reduce(
     (counts, item) => {
-      if (item.needsDateReview) {
-        counts.needsDateReviewCount += 1;
-      }
-
-      if (item.needsTimeReview) {
-        counts.needsTimeReviewCount += 1;
-      }
-
+      if (item.needsDateReview) counts.needsDateReviewCount += 1;
+      if (item.needsTimeReview) counts.needsTimeReviewCount += 1;
       return counts;
     },
-    {
-      needsDateReviewCount: 0,
-      needsTimeReviewCount: 0
-    }
+    { needsDateReviewCount: 0, needsTimeReviewCount: 0 }
   );
 }
 
@@ -168,12 +155,21 @@ function getCaptureOutcomeText(count: number) {
   return `About ${count} manual ${count === 1 ? 'entry' : 'entries'} avoided.`;
 }
 
+function readFileAsText(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => resolve((e.target?.result as string) ?? '');
+    reader.onerror = () => reject(new Error('File read failed'));
+    reader.readAsText(file, 'utf-8');
+  });
+}
+
 export default function App() {
   const [now, setNow] = useState(() => new Date());
   const [initialData] = useState(() => loadAppData(new Date()));
   const [tasks, setTasks] = useState<Task[]>(initialData.tasks);
   const [logs, setLogs] = useState<ActivityLog[]>(initialData.logs);
-  const [activeView, setActiveView] = useState<AppView>('capture');
+  const [activeView, setActiveView] = useState<AppView>('import');
   const [listFilter, setListFilter] = useState<TaskFilter>('all');
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [manualEditorOpen, setManualEditorOpen] = useState(false);
@@ -183,12 +179,17 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState('');
   const [qaMode, setQaMode] = useState(() => initializeQAMode());
   const [qaData, setQaData] = useState<QAData>(() => loadQAData());
+  const [importMode, setImportMode] = useState<ImportMode | null>(null);
+  const [importFileName, setImportFileName] = useState('');
+  const [importFileText, setImportFileText] = useState('');
+  const [importImageSrc, setImportImageSrc] = useState('');
+  const [importProcessing, setImportProcessing] = useState(false);
+  const [calYear, setCalYear] = useState(() => new Date().getFullYear());
+  const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
+  const [selectedCalDate, setSelectedCalDate] = useState<string | null>(null);
   const qaOpenTrackedRef = useRef(false);
   const lastNowTaskIdRef = useRef<string | null>(null);
-  const captureFlowRef = useRef({
-    hasExtraction: false,
-    manualAfterCaptureTracked: false
-  });
+  const captureFlowRef = useRef({ hasExtraction: false, manualAfterCaptureTracked: false });
 
   const recommendation = getNowRecommendation(tasks, now);
   const sortedTasks = sortTasksByRecommendation(tasks, now);
@@ -216,7 +217,7 @@ export default function App() {
       task.due === 'tomorrow'
   ).length;
   const hasSavedItems = activeTasks.length > 0;
-  const selectedCaptureCandidates = captureCandidates.filter((candidate) => candidate.selected && candidate.title.trim());
+  const selectedCaptureCandidates = captureCandidates.filter((c) => c.selected && c.title.trim());
   const selectedCaptureCalendarReadyCount = getCalendarReadyCount(selectedCaptureCandidates);
   const selectedCaptureReviewCounts = getReviewCounts(selectedCaptureCandidates);
 
@@ -230,13 +231,21 @@ export default function App() {
     setCaptureOutcome(null);
   }
 
+  function clearImportState() {
+    if (importImageSrc) URL.revokeObjectURL(importImageSrc);
+    setImportFileName('');
+    setImportFileText('');
+    setImportImageSrc('');
+    setImportProcessing(false);
+    setImportMode(null);
+  }
+
   function pushLog(type: ActivityLog['type'], when: Date, taskId?: string, meta?: string) {
     setLogs((current) => [createLog(type, when, taskId, meta), ...current].slice(0, 300));
   }
 
   function buildQAMetadata(taskSnapshot: Task[], overrides: QAEventMetadata = {}) {
     const activeTaskCount = taskSnapshot.filter((task) => task.status === 'active').length;
-
     return {
       taskCount: taskSnapshot.length,
       activeTaskCount,
@@ -252,16 +261,13 @@ export default function App() {
     timestamp = new Date(),
     taskSnapshot = tasks
   ) {
-    if (!qaMode) {
-      return;
-    }
-
+    if (!qaMode) return;
     setQaData((current) => ({
       ...current,
-      events: [createQAEvent(eventName, timestamp, buildQAMetadata(taskSnapshot, overrides)), ...current.events].slice(
-        0,
-        800
-      )
+      events: [
+        createQAEvent(eventName, timestamp, buildQAMetadata(taskSnapshot, overrides)),
+        ...current.events
+      ].slice(0, 800)
     }));
   }
 
@@ -271,20 +277,14 @@ export default function App() {
     stamp: Date,
     taskSnapshot = tasks
   ) {
-    if (previous.needsDateReview && !next.needsDateReview) {
+    if (previous.needsDateReview && !next.needsDateReview)
       trackQAEvent('date_review_completed', {}, stamp, taskSnapshot);
-    }
-
-    if (previous.needsTimeReview && !next.needsTimeReview) {
+    if (previous.needsTimeReview && !next.needsTimeReview)
       trackQAEvent('time_review_completed', {}, stamp, taskSnapshot);
-    }
   }
 
   function trackManualAfterCapture(taskSnapshot: Task[], timestamp: Date) {
-    if (!qaMode || !captureFlowRef.current.hasExtraction || captureFlowRef.current.manualAfterCaptureTracked) {
-      return;
-    }
-
+    if (!qaMode || !captureFlowRef.current.hasExtraction || captureFlowRef.current.manualAfterCaptureTracked) return;
     captureFlowRef.current.manualAfterCaptureTracked = true;
     trackQAEvent('used_manual_add_after_capture', {}, timestamp, taskSnapshot);
   }
@@ -296,9 +296,8 @@ export default function App() {
         return true;
       }
     } catch {
-      // Fall through to legacy copy.
+      // fall through
     }
-
     const helper = document.createElement('textarea');
     helper.value = text;
     helper.setAttribute('readonly', 'true');
@@ -330,14 +329,8 @@ export default function App() {
   }
 
   function clearQALog() {
-    if (!window.confirm('Clear the local QA event log and notes?')) {
-      return;
-    }
-
-    setQaData({
-      events: [],
-      feedback: []
-    });
+    if (!window.confirm('Clear the local QA event log and notes?')) return;
+    setQaData({ events: [], feedback: [] });
     showToast('QA log cleared.');
   }
 
@@ -351,19 +344,39 @@ export default function App() {
   function saveQANote(note: string, rating: QARating | '') {
     const stamp = new Date();
     const feedback = createQAFeedback(note, rating, stamp);
-
-    setQaData((current) => ({
-      ...current,
-      feedback: [feedback, ...current.feedback].slice(0, 100)
-    }));
+    setQaData((current) => ({ ...current, feedback: [feedback, ...current.feedback].slice(0, 100) }));
     showToast('QA note saved.');
   }
 
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setNow(new Date());
-    }, 60 * 1000);
+  async function handleFileImport(file: File) {
+    const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+    setImportFileName(file.name);
+    setImportProcessing(true);
+    if (ext === 'txt' || ext === 'md') {
+      try {
+        const text = await readFileAsText(file);
+        setImportFileText(text);
+        setCaptureText(text);
+        setImportProcessing(false);
+        runExtraction(text);
+      } catch {
+        setImportProcessing(false);
+        showToast('Could not read file.');
+      }
+    } else {
+      setImportProcessing(false);
+      showToast('Export as .txt or .md to import.');
+    }
+  }
 
+  function handleScreenshotImport(file: File) {
+    setImportFileName(file.name);
+    const url = URL.createObjectURL(file);
+    setImportImageSrc(url);
+  }
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 60 * 1000);
     return () => window.clearInterval(timer);
   }, []);
 
@@ -372,11 +385,7 @@ export default function App() {
   }, [now]);
 
   useEffect(() => {
-    saveAppData({
-      version: '0.1',
-      tasks,
-      logs
-    });
+    saveAppData({ version: '0.1', tasks, logs });
   }, [tasks, logs]);
 
   useEffect(() => {
@@ -384,76 +393,40 @@ export default function App() {
   }, [qaData]);
 
   useEffect(() => {
-    if (!toastMessage) {
-      return;
-    }
-
+    if (!toastMessage) return;
     const timer = window.setTimeout(() => setToastMessage(''), 2400);
     return () => window.clearTimeout(timer);
   }, [toastMessage]);
 
   useEffect(() => {
-    if (!qaMode || qaOpenTrackedRef.current) {
-      return;
-    }
-
+    if (!qaMode || qaOpenTrackedRef.current) return;
     qaOpenTrackedRef.current = true;
-
     const stamp = new Date();
     const displayMode = getDisplayMode();
     const metadata = buildQAMetadata(tasks, { displayMode });
     const openEvents = [createQAEvent('app_open', stamp, metadata)];
-
-    if (displayMode === 'standalone') {
-      openEvents.unshift(createQAEvent('standalone_open', stamp, metadata));
-    }
-
-    setQaData((current) => ({
-      ...current,
-      events: [...openEvents, ...current.events].slice(0, 800)
-    }));
+    if (displayMode === 'standalone') openEvents.unshift(createQAEvent('standalone_open', stamp, metadata));
+    setQaData((current) => ({ ...current, events: [...openEvents, ...current.events].slice(0, 800) }));
   }, [qaMode, tasks]);
 
   useEffect(() => {
-    if (!qaMode) {
-      return;
-    }
-
-    if (activeView === 'capture') {
-      trackQAEvent('capture_opened');
-    }
-
-    if (activeView === 'settings') {
-      trackQAEvent('settings_opened');
-    }
+    if (!qaMode) return;
+    if (activeView === 'import') trackQAEvent('capture_opened');
+    if (activeView === 'settings') trackQAEvent('settings_opened');
   }, [activeView, qaMode]);
 
   useEffect(() => {
-    if (!qaMode || activeView !== 'now') {
-      return;
-    }
-
+    if (!qaMode || activeView !== 'today') return;
     const currentTaskId = recommendation.task?.id ?? null;
-
-    if (!currentTaskId) {
-      lastNowTaskIdRef.current = null;
-      return;
-    }
-
-    if (lastNowTaskIdRef.current === currentTaskId) {
-      return;
-    }
-
+    if (!currentTaskId) { lastNowTaskIdRef.current = null; return; }
+    if (lastNowTaskIdRef.current === currentTaskId) return;
     if (lastNowTaskIdRef.current) {
       trackQAEvent('now_card_changed', {
         previousNowTaskId: lastNowTaskIdRef.current,
         nowTaskId: currentTaskId
       });
     }
-
-    trackQAEvent('now_card_viewed', {
-      nowTaskId: currentTaskId
-    });
+    trackQAEvent('now_card_viewed', { nowTaskId: currentTaskId });
     lastNowTaskIdRef.current = currentTaskId;
   }, [activeView, qaMode, recommendation.task?.id]);
 
@@ -461,99 +434,54 @@ export default function App() {
     const stamp = new Date();
     const task = createTaskFromDraft(draft, stamp, source);
     const nextTasks = [task, ...tasks];
-
     setTasks((current) => [task, ...current]);
     pushLog(source === 'capture' ? 'captured' : 'created', stamp, task.id);
-
     if (source === 'manual') {
       trackManualAfterCapture(nextTasks, stamp);
-      trackQAEvent(
-        'manual_task_created',
-        {
-          source,
-          itemType: task.itemType
-        },
-        stamp,
-        nextTasks
-      );
+      trackQAEvent('manual_task_created', { source, itemType: task.itemType }, stamp, nextTasks);
       setManualEditorOpen(false);
     }
-
     if (task.alarmEnabled) {
       trackQAEvent(
         'alarm_option_selected',
-        {
-          itemType: task.itemType,
-          alarmBeforeMinutes: task.alarmBeforeMinutes,
-          alarmSelectionCount: 1
-        },
-        stamp,
-        nextTasks
+        { itemType: task.itemType, alarmBeforeMinutes: task.alarmBeforeMinutes, alarmSelectionCount: 1 },
+        stamp, nextTasks
       );
     }
-
     if (task.needsDateReview || task.needsTimeReview) {
       trackQAEvent(
         'item_marked_needs_review',
-        {
-          itemsNeedingDateReviewCount: task.needsDateReview ? 1 : 0,
-          itemsNeedingTimeReviewCount: task.needsTimeReview ? 1 : 0
-        },
-        stamp,
-        nextTasks
+        { itemsNeedingDateReviewCount: task.needsDateReview ? 1 : 0, itemsNeedingTimeReviewCount: task.needsTimeReview ? 1 : 0 },
+        stamp, nextTasks
       );
     }
-
-    if (task.calendarReady) {
-      trackQAEvent('calendar_export_available', { calendarReadyCount: 1 }, stamp, nextTasks);
-    }
-
+    if (task.calendarReady) trackQAEvent('calendar_export_available', { calendarReadyCount: 1 }, stamp, nextTasks);
     showToast(source === 'capture' ? "Saved. You don't have to retype it later." : 'Saved.');
-    setActiveView(source === 'manual' ? 'tasks' : 'upcoming');
+    setActiveView('today');
   }
 
   function updateTask(taskId: string, draft: TaskDraft) {
     const stamp = new Date();
     const previousTask = tasks.find((task) => task.id === taskId);
-
-    if (!previousTask) {
-      return;
-    }
-
+    if (!previousTask) return;
     const nextDraft = applyDraftScheduling(draft, stamp);
-    const nextTask = {
-      ...previousTask,
-      ...nextDraft,
-      title: nextDraft.title.trim(),
-      memo: nextDraft.memo.trim()
-    };
-
+    const nextTask = { ...previousTask, ...nextDraft, title: nextDraft.title.trim(), memo: nextDraft.memo.trim() };
     const nextTasks = tasks.map((task) => (task.id === taskId ? nextTask : task));
-
     setTasks(nextTasks);
     pushLog('edited', stamp, taskId);
     trackReviewCompletion(previousTask, nextTask, stamp, nextTasks);
-
     if (
       previousTask.alarmEnabled !== nextTask.alarmEnabled ||
       previousTask.alarmBeforeMinutes !== nextTask.alarmBeforeMinutes
     ) {
       trackQAEvent(
         'alarm_option_selected',
-        {
-          itemType: nextTask.itemType,
-          alarmBeforeMinutes: nextTask.alarmBeforeMinutes,
-          alarmSelectionCount: 1
-        },
-        stamp,
-        nextTasks
+        { itemType: nextTask.itemType, alarmBeforeMinutes: nextTask.alarmBeforeMinutes, alarmSelectionCount: 1 },
+        stamp, nextTasks
       );
     }
-
-    if (nextTask.calendarReady && !previousTask.calendarReady) {
+    if (nextTask.calendarReady && !previousTask.calendarReady)
       trackQAEvent('calendar_export_available', { calendarReadyCount: 1 }, stamp, nextTasks);
-    }
-
     setEditingTask(null);
     showToast('Changes saved.');
   }
@@ -562,19 +490,10 @@ export default function App() {
     const stamp = new Date();
     const updatedTasks = tasks.map((task) =>
       task.id === taskId
-        ? {
-            ...task,
-            status: 'completed' as const,
-            completedAt: stamp.toISOString(),
-            excludedToday: false,
-            excludedOnDate: undefined,
-            snoozeUntil: undefined
-          }
+        ? { ...task, status: 'completed' as const, completedAt: stamp.toISOString(), excludedToday: false, excludedOnDate: undefined, snoozeUntil: undefined }
         : task
     );
-
     const nextTask = getNowRecommendation(updatedTasks, stamp).task;
-
     setTasks(updatedTasks);
     pushLog('completed', stamp, taskId);
     trackQAEvent('item_marked_done', {}, stamp, updatedTasks);
@@ -583,10 +502,7 @@ export default function App() {
 
   function deleteTask(taskId: string) {
     const target = tasks.find((task) => task.id === taskId);
-    if (!target || !window.confirm(`Delete "${target.title}"?`)) {
-      return;
-    }
-
+    if (!target || !window.confirm(`Delete "${target.title}"?`)) return;
     const stamp = new Date();
     setTasks((current) => current.filter((task) => task.id !== taskId));
     pushLog('deleted', stamp, taskId);
@@ -605,7 +521,6 @@ export default function App() {
           })
         : task
     );
-
     setTasks(updatedTasks);
     pushLog('snoozed', stamp, taskId);
     trackQAEvent('now_card_later', { nowTaskId: taskId }, stamp, updatedTasks);
@@ -623,7 +538,6 @@ export default function App() {
           })
         : task
     );
-
     setTasks(updatedTasks);
     pushLog('excludedToday', stamp, taskId);
     trackQAEvent('now_card_not_today', { nowTaskId: taskId }, stamp, updatedTasks);
@@ -631,39 +545,29 @@ export default function App() {
   }
 
   function restoreSamples() {
-    if (!window.confirm('Replace your current data with sample items?')) {
-      return;
-    }
-
+    if (!window.confirm('Replace your current data with sample items?')) return;
     const stamp = new Date();
     const restoredTasks = sampleTasks(stamp);
     setTasks(restoredTasks);
     setLogs([createLog('restoredSamples', stamp)]);
     clearCaptureComposer();
-    captureFlowRef.current = {
-      hasExtraction: false,
-      manualAfterCaptureTracked: false
-    };
+    clearImportState();
+    captureFlowRef.current = { hasExtraction: false, manualAfterCaptureTracked: false };
     trackQAEvent('sample_tasks_restored', {}, stamp, restoredTasks);
-    setActiveView('capture');
+    setActiveView('today');
     showToast('Sample items restored.');
   }
 
   function clearAll() {
-    if (!window.confirm('Reset all local data? This cannot be undone.')) {
-      return;
-    }
-
+    if (!window.confirm('Reset all local data? This cannot be undone.')) return;
     const stamp = new Date();
     setTasks([]);
     setLogs([]);
     clearCaptureComposer();
-    captureFlowRef.current = {
-      hasExtraction: false,
-      manualAfterCaptureTracked: false
-    };
+    clearImportState();
+    captureFlowRef.current = { hasExtraction: false, manualAfterCaptureTracked: false };
     trackQAEvent('data_reset', {}, stamp, []);
-    setActiveView('capture');
+    setActiveView('import');
     showToast('All local data cleared.');
   }
 
@@ -672,48 +576,33 @@ export default function App() {
       showToast('Paste a message or meeting note first.');
       return;
     }
-
     const stamp = new Date();
     const candidates = extractCaptureCandidates(input, stamp);
     const counts = getItemCounts(candidates);
     const reviewCountsForCandidates = getReviewCounts(candidates);
     const calendarReadyCount = getCalendarReadyCount(candidates);
-
     setCaptureCandidates(candidates);
     setCaptureOutcome(null);
-    captureFlowRef.current = {
-      hasExtraction: true,
-      manualAfterCaptureTracked: false
-    };
-
+    captureFlowRef.current = { hasExtraction: true, manualAfterCaptureTracked: false };
     trackQAEvent('extraction_run', {
       detectedItemsCount: candidates.length,
       extractedTaskCount: counts.task,
       extractedEventCount: counts.event,
       extractedReminderCount: counts.reminder
     });
-
-    if (calendarReadyCount > 0) {
-      trackQAEvent('calendar_export_available', { calendarReadyCount }, stamp);
-    }
-
+    if (calendarReadyCount > 0) trackQAEvent('calendar_export_available', { calendarReadyCount }, stamp);
     if (reviewCountsForCandidates.needsDateReviewCount || reviewCountsForCandidates.needsTimeReviewCount) {
-      trackQAEvent(
-        'item_marked_needs_review',
-        {
-          itemsNeedingDateReviewCount: reviewCountsForCandidates.needsDateReviewCount,
-          itemsNeedingTimeReviewCount: reviewCountsForCandidates.needsTimeReviewCount
-        },
-        stamp
-      );
+      trackQAEvent('item_marked_needs_review', {
+        itemsNeedingDateReviewCount: reviewCountsForCandidates.needsDateReviewCount,
+        itemsNeedingTimeReviewCount: reviewCountsForCandidates.needsTimeReviewCount
+      }, stamp);
     }
-
     if (candidates.length === 0) {
       showToast('Nothing clear yet. Try shorter lines or one note at a time.');
       return;
     }
-
     showToast(`Found ${candidates.length} follow-up${candidates.length === 1 ? '' : 's'}.`);
+    setActiveView('inbox');
   }
 
   function parseCaptureText() {
@@ -727,25 +616,11 @@ export default function App() {
 
   function saveCaptureCandidates() {
     const selected = captureCandidates
-      .filter((candidate) => candidate.selected && candidate.title.trim())
-      .map((candidate) =>
-        applyDraftScheduling(
-          {
-            ...candidate,
-            title: candidate.title.trim(),
-            memo: candidate.memo.trim()
-          },
-          new Date()
-        )
-      );
-
-    if (selected.length === 0) {
-      showToast('Select at least one item to save.');
-      return;
-    }
-
+      .filter((c) => c.selected && c.title.trim())
+      .map((c) => applyDraftScheduling({ ...c, title: c.title.trim(), memo: c.memo.trim() }, new Date()));
+    if (selected.length === 0) { showToast('Select at least one item to save.'); return; }
     const stamp = new Date();
-    const createdTasks = selected.map((candidate) => createTaskFromDraft(candidate, stamp, 'capture'));
+    const createdTasks = selected.map((c) => createTaskFromDraft(c, stamp, 'capture'));
     const nextTasks = [...createdTasks, ...tasks];
     const counts = getItemCounts(selected);
     const nextReviewCounts = getReviewCounts(selected);
@@ -761,94 +636,53 @@ export default function App() {
       needsDateReviewCount: nextReviewCounts.needsDateReviewCount,
       needsTimeReviewCount: nextReviewCounts.needsTimeReviewCount
     };
-
     setTasks((current) => [...createdTasks, ...current]);
-    setLogs((current) => [...createdTasks.map((task) => createLog('captured', stamp, task.id)), ...current].slice(0, 300));
+    setLogs((current) =>
+      [...createdTasks.map((t) => createLog('captured', stamp, t.id)), ...current].slice(0, 300)
+    );
     setCaptureText('');
     setCaptureCandidates([]);
     setCaptureOutcome(outcome);
-    captureFlowRef.current = {
-      hasExtraction: true,
-      manualAfterCaptureTracked: false
-    };
-
-    trackQAEvent(
-      'capture_items_saved',
-      {
-        savedDetectedItemsCount: selected.length,
-        savedTaskCount: counts.task,
-        savedEventCount: counts.event,
-        savedReminderCount: counts.reminder,
-        manualEntriesAvoidedApprox: outcome.manualEntriesAvoidedApprox
-      },
-      stamp,
-      nextTasks
-    );
-
-    if (calendarReadyCount > 0) {
-      trackQAEvent('calendar_export_available', { calendarReadyCount }, stamp, nextTasks);
-    }
-
+    captureFlowRef.current = { hasExtraction: true, manualAfterCaptureTracked: false };
+    trackQAEvent('capture_items_saved', {
+      savedDetectedItemsCount: selected.length,
+      savedTaskCount: counts.task,
+      savedEventCount: counts.event,
+      savedReminderCount: counts.reminder,
+      manualEntriesAvoidedApprox: outcome.manualEntriesAvoidedApprox
+    }, stamp, nextTasks);
+    if (calendarReadyCount > 0) trackQAEvent('calendar_export_available', { calendarReadyCount }, stamp, nextTasks);
     if (nextReviewCounts.needsDateReviewCount || nextReviewCounts.needsTimeReviewCount) {
-      trackQAEvent(
-        'item_marked_needs_review',
-        {
-          itemsNeedingDateReviewCount: nextReviewCounts.needsDateReviewCount,
-          itemsNeedingTimeReviewCount: nextReviewCounts.needsTimeReviewCount
-        },
-        stamp,
-        nextTasks
-      );
+      trackQAEvent('item_marked_needs_review', {
+        itemsNeedingDateReviewCount: nextReviewCounts.needsDateReviewCount,
+        itemsNeedingTimeReviewCount: nextReviewCounts.needsTimeReviewCount
+      }, stamp, nextTasks);
     }
-
     const alarmSelections = selected.filter((item) => item.alarmEnabled).length;
-    if (alarmSelections > 0) {
-      trackQAEvent('alarm_option_selected', { alarmSelectionCount: alarmSelections }, stamp, nextTasks);
-    }
-
+    if (alarmSelections > 0) trackQAEvent('alarm_option_selected', { alarmSelectionCount: alarmSelections }, stamp, nextTasks);
     showToast("Saved. You don't have to retype it later.");
+    setActiveView('today');
   }
 
   function updateCaptureCandidate(candidateId: string, updates: Partial<CaptureCandidate>) {
-    const previousCandidate = captureCandidates.find((candidate) => candidate.id === candidateId);
-
-    if (!previousCandidate) {
-      return;
-    }
-
-    const nextCandidate = refreshCaptureCandidate(
-      {
-        ...previousCandidate,
-        ...updates
-      },
-      new Date()
-    );
-
-    setCaptureCandidates((current) => current.map((candidate) => (candidate.id === candidateId ? nextCandidate : candidate)));
+    const previousCandidate = captureCandidates.find((c) => c.id === candidateId);
+    if (!previousCandidate) return;
+    const nextCandidate = refreshCaptureCandidate({ ...previousCandidate, ...updates }, new Date());
+    setCaptureCandidates((current) => current.map((c) => (c.id === candidateId ? nextCandidate : c)));
     trackReviewCompletion(previousCandidate, nextCandidate, new Date());
   }
 
   function updateCaptureCandidateAlarm(candidateId: string, alarmEnabled: boolean, alarmBeforeMinutes: number | null) {
-    const previousCandidate = captureCandidates.find((candidate) => candidate.id === candidateId);
-
-    if (!previousCandidate) {
-      return;
-    }
-
+    const previousCandidate = captureCandidates.find((c) => c.id === candidateId);
+    if (!previousCandidate) return;
     const nextCandidate = updateAlarmPreference(previousCandidate, alarmEnabled, alarmBeforeMinutes);
-    setCaptureCandidates((current) => current.map((candidate) => (candidate.id === candidateId ? nextCandidate : candidate)));
-    trackQAEvent('alarm_option_selected', {
-      itemType: nextCandidate.itemType,
-      alarmBeforeMinutes,
-      alarmSelectionCount: 1
-    });
+    setCaptureCandidates((current) => current.map((c) => (c.id === candidateId ? nextCandidate : c)));
+    trackQAEvent('alarm_option_selected', { itemType: nextCandidate.itemType, alarmBeforeMinutes, alarmSelectionCount: 1 });
   }
 
   async function previewCopyDetails(candidate: CaptureCandidate) {
     const success = await copyEventDetails(candidate);
-    if (success) {
-      trackQAEvent('event_details_copied', { eventDetailsCopiedCount: 1 });
-    }
+    if (success) trackQAEvent('event_details_copied', { eventDetailsCopiedCount: 1 });
     showToast(success ? 'Details copied.' : 'Copy failed.');
   }
 
@@ -857,7 +691,6 @@ export default function App() {
       showToast('This item needs a clear date and time before calendar export.');
       return;
     }
-
     try {
       downloadICS(candidate);
       trackQAEvent('calendar_file_downloaded', { calendarExportCount: 1 });
@@ -881,7 +714,6 @@ export default function App() {
       showToast('This item needs a clear date and time before calendar export.');
       return;
     }
-
     try {
       downloadICS(task);
       const stamp = new Date();
@@ -893,158 +725,11 @@ export default function App() {
     }
   }
 
-  function renderNowView() {
-    return (
-      <section className="view">
-        <header className="screen-header">
-          <div>
-            <div className="eyebrow">Now</div>
-            <h1>One thing to follow up on.</h1>
-            <p>Keep one useful follow-up moving.</p>
-          </div>
-          <button type="button" className="ghost-button" onClick={() => setActiveView('capture')}>
-            Capture
-          </button>
-        </header>
-
-        <NowCard
-          task={recommendation.task}
-          reasons={recommendation.reasons}
-          onComplete={completeTask}
-          onSnooze={snoozeTask}
-          onSkipToday={skipToday}
-          onOpenCapture={() => setActiveView('capture')}
-          onManualAdd={() => setManualEditorOpen(true)}
-        />
-
-        <section className="panel panel--quiet">
-          <div className="section-heading">
-            <div>
-              <h2>Up next</h2>
-              <p>A few more worth seeing.</p>
-            </div>
-            <button type="button" className="ghost-button" onClick={() => setActiveView('upcoming')}>
-              View upcoming
-            </button>
-          </div>
-          <div className="stack">
-            {nextCandidates.length > 0 ? (
-              nextCandidates.map((task) => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  onComplete={completeTask}
-                  onEdit={setEditingTask}
-                  onDelete={deleteTask}
-                  onDownloadICS={handleDownloadICS}
-                  onCopyDetails={handleCopyDetails}
-                />
-              ))
-            ) : (
-              <div className="empty-state">
-                <h3>Nothing else needs to compete right now.</h3>
-                <p>Capture something new when it shows up.</p>
-              </div>
-            )}
-          </div>
-        </section>
-      </section>
-    );
-  }
-
-  function renderUpcomingView() {
-    return (
-      <section className="view">
-        <header className="screen-header">
-          <div>
-            <div className="eyebrow">Upcoming</div>
-            <h1>What might you miss?</h1>
-            <p>Today, tomorrow, and anything unclear.</p>
-          </div>
-          <button type="button" className="ghost-button" onClick={() => setActiveView('capture')}>
-            Capture
-          </button>
-        </header>
-
-        <UpcomingPanel
-          tasks={tasks}
-          now={now}
-          onEdit={setEditingTask}
-          onComplete={completeTask}
-          onDelete={deleteTask}
-          onDownloadICS={handleDownloadICS}
-          onCopyDetails={handleCopyDetails}
-          onViewed={() => trackQAEvent('upcoming_viewed')}
-        />
-      </section>
-    );
-  }
-
-  function renderTasksView() {
-    return (
-      <section className="view">
-        <header className="screen-header">
-          <div>
-            <div className="eyebrow">Tasks</div>
-            <h1>Saved follow-ups</h1>
-            <p>Captured and added manually.</p>
-          </div>
-          <div className="action-row">
-            <button type="button" className="secondary-button" onClick={() => setManualEditorOpen(true)}>
-              Add manually
-            </button>
-            <button type="button" className="ghost-button" onClick={() => setActiveView('capture')}>
-              Capture
-            </button>
-          </div>
-        </header>
-
-        <div className="filter-bar">
-          {FILTER_ITEMS.map((item) => (
-            <button
-              key={item.value}
-              type="button"
-              className={`chip ${listFilter === item.value ? 'is-selected' : ''}`}
-              onClick={() => setListFilter(item.value)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="stack">
-          {visibleTasks.length > 0 ? (
-            visibleTasks.map((task) => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                showStatus
-                onComplete={task.status === 'active' ? completeTask : undefined}
-                onEdit={task.status === 'active' ? setEditingTask : undefined}
-                onDelete={deleteTask}
-                onDownloadICS={handleDownloadICS}
-                onCopyDetails={handleCopyDetails}
-              />
-            ))
-          ) : (
-            <div className="empty-state">
-              <h3>No saved follow-ups yet.</h3>
-            </div>
-          )}
-        </div>
-      </section>
-    );
-  }
-
   function renderCaptureGroup(type: ItemType) {
     const items = captureCandidates.filter(
-      (candidate) => candidate.itemType === type && !candidate.needsDateReview && !candidate.needsTimeReview
+      (c) => c.itemType === type && !c.needsDateReview && !c.needsTimeReview && c.confidence !== 'low'
     );
-
-    if (items.length === 0) {
-      return null;
-    }
-
+    if (items.length === 0) return null;
     return (
       <section key={type} className="capture-group">
         <div className="section-heading">
@@ -1058,7 +743,7 @@ export default function App() {
             <CaptureCandidateCard
               key={candidate.id}
               candidate={candidate}
-              onToggleSelected={(candidateId, selected) => updateCaptureCandidate(candidateId, { selected })}
+              onToggleSelected={(id, selected) => updateCaptureCandidate(id, { selected })}
               onChange={updateCaptureCandidate}
               onAlarmChange={updateCaptureCandidateAlarm}
               onPreviewDownload={previewDownloadICS}
@@ -1071,12 +756,8 @@ export default function App() {
   }
 
   function renderNeedsReviewGroup() {
-    const items = captureCandidates.filter((candidate) => candidate.needsDateReview || candidate.needsTimeReview);
-
-    if (items.length === 0) {
-      return null;
-    }
-
+    const items = captureCandidates.filter((c) => c.needsDateReview || c.needsTimeReview);
+    if (items.length === 0) return null;
     return (
       <section className="capture-group">
         <div className="section-heading">
@@ -1090,7 +771,7 @@ export default function App() {
             <CaptureCandidateCard
               key={candidate.id}
               candidate={candidate}
-              onToggleSelected={(candidateId, selected) => updateCaptureCandidate(candidateId, { selected })}
+              onToggleSelected={(id, selected) => updateCaptureCandidate(id, { selected })}
               onChange={updateCaptureCandidate}
               onAlarmChange={updateCaptureCandidateAlarm}
               onPreviewDownload={previewDownloadICS}
@@ -1102,83 +783,101 @@ export default function App() {
     );
   }
 
-  function renderCaptureView() {
+  function renderTodayView() {
+    const todayLabel = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+    const todayAgenda = sortedTasks.filter(
+      (t) =>
+        t.status === 'active' &&
+        (t.due === 'today' || t.parsedDate === todayKey || t.needsDateReview || t.needsTimeReview)
+    );
+
     return (
       <section className="view">
         <header className="hero-card hero-card--capture hero-card--compact">
-          <AppHeader title={brand.slogan} subtitle={brand.captureHelper} showBrand />
+          <div>
+            <div className="today-date">{todayLabel}</div>
+            <h1>Today</h1>
+            {activeTasks.length > 0 ? (
+              <p>
+                {todayFollowUpsCount} due today
+                {reviewCounts.needsDateReviewCount + reviewCounts.needsTimeReviewCount > 0
+                  ? ` · ${reviewCounts.needsDateReviewCount + reviewCounts.needsTimeReviewCount} to review`
+                  : null}
+              </p>
+            ) : (
+              <p>Your schedule, organized.</p>
+            )}
+          </div>
+          <button type="button" className="ghost-button" onClick={() => setActiveView('import')}>
+            Import
+          </button>
         </header>
 
-        <section className="panel panel--capture">
-          <label className="field field--spacious">
-            <span>Paste a message, meeting note, or plan</span>
-            <textarea
-              rows={7}
-              value={captureText}
-              onChange={(event) => setCaptureText(event.target.value)}
-              placeholder="Paste a message, meeting note, or plan..."
-            />
-          </label>
-          <div className="action-row">
-            <button type="button" className="primary-button" onClick={parseCaptureText}>
-              Extract
-            </button>
-            <button type="button" className="ghost-button" onClick={trySampleCapture}>
-              Try sample
-            </button>
-            {captureText.trim() ? (
-              <button type="button" className="ghost-button" onClick={clearCaptureComposer}>
-                Clear
-              </button>
-            ) : null}
-          </div>
-          <p className="subcopy">{brand.privacyLine}</p>
-        </section>
+        <NowCard
+          task={recommendation.task}
+          reasons={recommendation.reasons}
+          onComplete={completeTask}
+          onSnooze={snoozeTask}
+          onSkipToday={skipToday}
+          onOpenCapture={() => setActiveView('import')}
+          onManualAdd={() => setManualEditorOpen(true)}
+        />
 
-        {hasSavedItems ? (
+        {todayAgenda.length > 0 ? (
           <section className="panel panel--quiet">
             <div className="section-heading">
               <div>
-                <h2>Your follow-ups</h2>
+                <h2>Today's agenda</h2>
+                <p>{todayAgenda.length} item{todayAgenda.length === 1 ? '' : 's'}</p>
               </div>
-              <button type="button" className="ghost-button" onClick={() => setActiveView('upcoming')}>
-                View upcoming
+              <button type="button" className="ghost-button" onClick={() => setActiveView('calendar')}>
+                Calendar
               </button>
             </div>
-            <div className="meta-row meta-row--summary">
-              <span>Today {todayFollowUpsCount}</span>
-              <span>Needs review {reviewCounts.needsDateReviewCount + reviewCounts.needsTimeReviewCount}</span>
-              <span>Calendar-ready {calendarNotExportedCount}</span>
+            <div className="stack">
+              {todayAgenda.slice(0, 5).map((task) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  onComplete={completeTask}
+                  onEdit={setEditingTask}
+                  onDelete={deleteTask}
+                  onDownloadICS={handleDownloadICS}
+                  onCopyDetails={handleCopyDetails}
+                />
+              ))}
+              {todayAgenda.length > 5 ? (
+                <button type="button" className="ghost-button" onClick={() => setActiveView('calendar')}>
+                  +{todayAgenda.length - 5} more in calendar
+                </button>
+              ) : null}
             </div>
           </section>
         ) : null}
 
-        {captureOutcome ? (
-          <section className="panel panel--success">
+        {nextCandidates.length > 0 ? (
+          <section className="panel panel--quiet">
             <div className="section-heading">
               <div>
-                <h2>
-                  Saved {captureOutcome.savedCount} follow-up{captureOutcome.savedCount === 1 ? '' : 's'}.
-                </h2>
-                <p>
-                  {captureOutcome.calendarReadyCount} calendar-ready.{' '}
-                  {captureOutcome.needsDateReviewCount + captureOutcome.needsTimeReviewCount} need review.
-                </p>
+                <h2>Up next</h2>
+                <p>A few more worth seeing.</p>
               </div>
-              <div className="action-row">
-                <button type="button" className="secondary-button" onClick={() => setActiveView('upcoming')}>
-                  View upcoming
-                </button>
-                <button type="button" className="ghost-button" onClick={clearCaptureComposer}>
-                  Capture another
-                </button>
-              </div>
+              <button type="button" className="ghost-button" onClick={() => setActiveView('calendar')}>
+                View all
+              </button>
             </div>
-            <div className="meta-row meta-row--summary">
-              <span>{getCaptureOutcomeText(captureOutcome.manualEntriesAvoidedApprox)}</span>
-              <span>{captureOutcome.savedTaskCount} tasks</span>
-              <span>{captureOutcome.savedEventCount} events</span>
-              <span>{captureOutcome.savedReminderCount} reminders</span>
+            <div className="stack">
+              {nextCandidates.map((task) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  onComplete={completeTask}
+                  onEdit={setEditingTask}
+                  onDelete={deleteTask}
+                  onDownloadICS={handleDownloadICS}
+                  onCopyDetails={handleCopyDetails}
+                />
+              ))}
             </div>
           </section>
         ) : null}
@@ -1187,29 +886,527 @@ export default function App() {
           <section className="panel panel--quiet">
             <div className="section-heading">
               <div>
-                <h2>{captureCandidates.length} follow-up{captureCandidates.length === 1 ? '' : 's'} found</h2>
-                <p>{getCalendarReadyCount(captureCandidates)} calendar-ready. {captureReviewCounts.needsDateReviewCount + captureReviewCounts.needsTimeReviewCount} need review.</p>
+                <h2>Pending review</h2>
+                <p>{captureCandidates.length} item{captureCandidates.length === 1 ? '' : 's'} to confirm</p>
+              </div>
+              <button type="button" className="secondary-button" onClick={() => setActiveView('inbox')}>
+                Review
+              </button>
+            </div>
+          </section>
+        ) : null}
+
+        {activeTasks.length === 0 && captureCandidates.length === 0 ? (
+          <section className="panel panel--quiet">
+            <div className="empty-state">
+              <h3>Nothing scheduled yet.</h3>
+              <p>Import a file to get your schedule organized.</p>
+              <button type="button" className="primary-button" onClick={() => setActiveView('import')}>
+                Import
+              </button>
+            </div>
+          </section>
+        ) : null}
+      </section>
+    );
+  }
+
+  function renderCalendarView() {
+    const prevMonth = () => {
+      if (calMonth === 0) { setCalYear((y) => y - 1); setCalMonth(11); }
+      else setCalMonth((m) => m - 1);
+    };
+    const nextMonth = () => {
+      if (calMonth === 11) { setCalYear((y) => y + 1); setCalMonth(0); }
+      else setCalMonth((m) => m + 1);
+    };
+
+    const monthLabel = new Date(calYear, calMonth, 1).toLocaleDateString('en-US', {
+      month: 'long',
+      year: 'numeric'
+    });
+    const firstDow = new Date(calYear, calMonth, 1).getDay();
+    const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+    const blanks = Array.from({ length: firstDow });
+    const dayNums = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+
+    const getDayKey = (n: number) => toDateKey(new Date(calYear, calMonth, n));
+
+    const getDayTasks = (dateKey: string) =>
+      sortedTasks.filter(
+        (t) =>
+          t.status === 'active' &&
+          (t.parsedDate === dateKey ||
+            (t.due === 'today' && dateKey === todayKey) ||
+            (t.due === 'tomorrow' && dateKey === tomorrowKey))
+      );
+
+    const selectedDateTasks = selectedCalDate ? getDayTasks(selectedCalDate) : [];
+    const selectedDateLabel = selectedCalDate
+      ? new Date(selectedCalDate + 'T12:00:00').toLocaleDateString('en-US', {
+          weekday: 'long',
+          month: 'long',
+          day: 'numeric'
+        })
+      : '';
+
+    return (
+      <section className="view">
+        <header className="screen-header">
+          <div>
+            <div className="eyebrow">Calendar</div>
+            <h1>Schedule</h1>
+          </div>
+          <button type="button" className="ghost-button" onClick={() => setActiveView('import')}>
+            Import
+          </button>
+        </header>
+
+        <section className="panel panel--quiet">
+          <div className="cal-nav">
+            <button type="button" className="ghost-button tiny-button" onClick={prevMonth} aria-label="Previous month">
+              ‹
+            </button>
+            <strong>{monthLabel}</strong>
+            <button type="button" className="ghost-button tiny-button" onClick={nextMonth} aria-label="Next month">
+              ›
+            </button>
+          </div>
+          <div className="cal-grid">
+            {CAL_DOW.map((d) => (
+              <div key={d} className="cal-dow">{d}</div>
+            ))}
+            {blanks.map((_, i) => (
+              <div key={`b${i}`} className="cal-day cal-day--empty" />
+            ))}
+            {dayNums.map((n) => {
+              const dk = getDayKey(n);
+              const count = getDayTasks(dk).length;
+              const hasReview = sortedTasks.some(
+                (t) => t.status === 'active' && t.parsedDate === dk && (t.needsDateReview || t.needsTimeReview)
+              );
+              const cls = [
+                'cal-day',
+                dk === todayKey ? 'is-today' : '',
+                dk === selectedCalDate ? 'is-selected' : '',
+                count > 0 ? 'has-items' : '',
+                hasReview ? 'has-review' : ''
+              ]
+                .filter(Boolean)
+                .join(' ');
+              return (
+                <button
+                  key={dk}
+                  type="button"
+                  className={cls}
+                  onClick={() => setSelectedCalDate(dk === selectedCalDate ? null : dk)}
+                >
+                  {n}
+                  {count > 0 ? <span className="cal-day__dot" /> : null}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        {selectedCalDate ? (
+          <section className="panel panel--quiet">
+            <div className="section-heading">
+              <div>
+                <h2>{selectedDateLabel}</h2>
+                <p>{selectedDateTasks.length} item{selectedDateTasks.length === 1 ? '' : 's'}</p>
               </div>
             </div>
+            {selectedDateTasks.length > 0 ? (
+              <div className="stack">
+                {selectedDateTasks.map((task) => (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    onComplete={completeTask}
+                    onEdit={setEditingTask}
+                    onDelete={deleteTask}
+                    onDownloadICS={handleDownloadICS}
+                    onCopyDetails={handleCopyDetails}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="empty-state">
+                <p>Nothing scheduled for this day.</p>
+              </div>
+            )}
+          </section>
+        ) : (
+          <UpcomingPanel
+            tasks={tasks}
+            now={now}
+            onEdit={setEditingTask}
+            onComplete={completeTask}
+            onDelete={deleteTask}
+            onDownloadICS={handleDownloadICS}
+            onCopyDetails={handleCopyDetails}
+            onViewed={() => trackQAEvent('upcoming_viewed')}
+          />
+        )}
+      </section>
+    );
+  }
+
+  function renderImportView() {
+    return (
+      <section className="view">
+        <header className="hero-card hero-card--capture hero-card--compact">
+          <AppHeader
+            title="Drop a file. Get your schedule organized."
+            subtitle="Upload meeting notes, screenshots, or recordings. We'll find the follow-ups."
+            showBrand
+          />
+        </header>
+
+        {importMode === null ? (
+          <div className="import-card-grid">
+            <button type="button" className="import-card" onClick={() => setImportMode('file')}>
+              <div className="import-card__label">Meeting file</div>
+              <div className="import-card__hint">.txt · .md</div>
+            </button>
+            <button type="button" className="import-card" onClick={() => setImportMode('screenshot')}>
+              <div className="import-card__label">Screenshot</div>
+              <div className="import-card__hint">png · jpg · webp</div>
+            </button>
+            <button type="button" className="import-card is-disabled">
+              <div className="import-card__label">Recording</div>
+              <div className="import-card__hint">Not available in web version</div>
+            </button>
+            <button type="button" className="import-card" onClick={() => setImportMode('text')}>
+              <div className="import-card__label">Text</div>
+              <div className="import-card__hint">Paste or type</div>
+            </button>
+          </div>
+        ) : importMode === 'file' ? (
+          <section className="panel panel--capture">
+            <div className="section-heading">
+              <div>
+                <h2>Meeting file</h2>
+                <p>.txt and .md supported</p>
+              </div>
+              <button type="button" className="ghost-button" onClick={clearImportState}>
+                Back
+              </button>
+            </div>
+            {importProcessing ? (
+              <p className="subcopy">Reading file…</p>
+            ) : importFileName ? (
+              <div className="stack--tight">
+                <p><strong>{importFileName}</strong></p>
+                {importFileText ? (
+                  <div className="import-file-preview">
+                    {importFileText.slice(0, 240)}{importFileText.length > 240 ? '…' : ''}
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <div className="stack--tight">
+                <label className="file-label-button">
+                  Choose file
+                  <input
+                    type="file"
+                    accept=".txt,.md,.pdf,.docx"
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleFileImport(file);
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
+                <p className="subcopy">.txt and .md files parse immediately. PDF and DOCX: export as .txt first.</p>
+              </div>
+            )}
+          </section>
+        ) : importMode === 'screenshot' ? (
+          <section className="panel panel--capture">
+            <div className="section-heading">
+              <div>
+                <h2>Screenshot</h2>
+                <p>Upload an image</p>
+              </div>
+              <button
+                type="button"
+                className="ghost-button"
+                onClick={() => {
+                  if (importImageSrc) URL.revokeObjectURL(importImageSrc);
+                  setImportImageSrc('');
+                  setImportFileName('');
+                  setImportMode(null);
+                }}
+              >
+                Back
+              </button>
+            </div>
+            {importImageSrc ? (
+              <div className="stack--tight">
+                <img src={importImageSrc} alt="Uploaded screenshot" className="screenshot-preview" />
+                <p className="subcopy">Text extraction from images is not available in the web version.</p>
+              </div>
+            ) : (
+              <div className="stack--tight">
+                <label className="file-label-button">
+                  Choose image
+                  <input
+                    type="file"
+                    accept=".png,.jpg,.jpeg,.webp"
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleScreenshotImport(file);
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
+              </div>
+            )}
+          </section>
+        ) : importMode === 'recording' ? (
+          <section className="panel panel--quiet">
+            <div className="section-heading">
+              <div><h2>Recording</h2></div>
+              <button type="button" className="ghost-button" onClick={() => setImportMode(null)}>
+                Back
+              </button>
+            </div>
+            <p>Not available in web version.</p>
+            <p className="subcopy">Transcription is supported in the mobile app.</p>
+          </section>
+        ) : importMode === 'text' ? (
+          <section className="panel panel--capture">
+            <div className="section-heading">
+              <div><h2>Paste text</h2></div>
+              <button
+                type="button"
+                className="ghost-button"
+                onClick={() => { setImportMode(null); clearCaptureComposer(); }}
+              >
+                Back
+              </button>
+            </div>
+            <label className="field field--spacious">
+              <span>Meeting notes, message, or plan</span>
+              <textarea
+                rows={7}
+                value={captureText}
+                onChange={(e) => setCaptureText(e.target.value)}
+                placeholder="Paste a message, meeting note, or plan..."
+              />
+            </label>
+            <div className="action-row">
+              <button type="button" className="primary-button" onClick={parseCaptureText}>
+                Extract
+              </button>
+              <button type="button" className="ghost-button" onClick={trySampleCapture}>
+                Try sample
+              </button>
+              {captureText.trim() ? (
+                <button type="button" className="ghost-button" onClick={clearCaptureComposer}>
+                  Clear
+                </button>
+              ) : null}
+            </div>
+            <p className="subcopy">{brand.privacyLine}</p>
+          </section>
+        ) : null}
+
+        {captureOutcome ? (
+          <section className="panel panel--success">
+            <div className="section-heading">
+              <div>
+                <h2>Saved {captureOutcome.savedCount} follow-up{captureOutcome.savedCount === 1 ? '' : 's'}.</h2>
+                <p>{captureOutcome.calendarReadyCount} calendar-ready.</p>
+              </div>
+              <div className="action-row">
+                <button type="button" className="secondary-button" onClick={() => setActiveView('today')}>
+                  View today
+                </button>
+                <button
+                  type="button"
+                  className="ghost-button"
+                  onClick={() => { clearCaptureComposer(); clearImportState(); }}
+                >
+                  Import another
+                </button>
+              </div>
+            </div>
+          </section>
+        ) : hasSavedItems ? (
+          <section className="panel panel--quiet">
+            <div className="section-heading">
+              <div><h2>Your schedule</h2></div>
+              <button type="button" className="ghost-button" onClick={() => setActiveView('today')}>
+                View today
+              </button>
+            </div>
+            <div className="meta-row meta-row--summary">
+              <span>Today {todayFollowUpsCount}</span>
+              <span>Review {reviewCounts.needsDateReviewCount + reviewCounts.needsTimeReviewCount}</span>
+              <span>Calendar {calendarNotExportedCount}</span>
+            </div>
+          </section>
+        ) : null}
+      </section>
+    );
+  }
+
+  function renderInboxView() {
+    const pendingCount = captureCandidates.length;
+    const lowConfidenceCandidates = captureCandidates.filter(
+      (c) => !c.needsDateReview && !c.needsTimeReview && c.confidence === 'low'
+    );
+
+    return (
+      <section className="view">
+        <header className="screen-header">
+          <div>
+            <div className="eyebrow">Inbox</div>
+            <h1>Review before saving</h1>
+            {pendingCount > 0 ? (
+              <p>We found {pendingCount} follow-up{pendingCount === 1 ? '' : 's'}.</p>
+            ) : (
+              <p>Confirm once. We'll organize the rest.</p>
+            )}
+          </div>
+          <button type="button" className="ghost-button" onClick={() => setActiveView('import')}>
+            Import
+          </button>
+        </header>
+
+        {pendingCount > 0 ? (
+          <>
             <div className="capture-save-bar">
               <div>
                 <strong>{selectedCaptureCandidates.length} ready to save</strong>
                 <p>
-                  {selectedCaptureCalendarReadyCount} calendar-ready. {selectedCaptureReviewCounts.needsDateReviewCount + selectedCaptureReviewCounts.needsTimeReviewCount} need review.
+                  {selectedCaptureCalendarReadyCount} calendar-ready.{' '}
+                  {selectedCaptureReviewCounts.needsDateReviewCount + selectedCaptureReviewCounts.needsTimeReviewCount} need review.
                 </p>
               </div>
               <button type="button" className="primary-button" onClick={saveCaptureCandidates}>
                 Save selected
               </button>
             </div>
-            <div className="stack">
-              {renderCaptureGroup('task')}
-              {renderCaptureGroup('event')}
-              {renderCaptureGroup('reminder')}
-              {renderNeedsReviewGroup()}
+            <section className="panel panel--quiet">
+              <div className="section-heading">
+                <div>
+                  <h2>{pendingCount} follow-up{pendingCount === 1 ? '' : 's'} found</h2>
+                  <p>
+                    {getCalendarReadyCount(captureCandidates)} calendar-ready.{' '}
+                    {captureReviewCounts.needsDateReviewCount + captureReviewCounts.needsTimeReviewCount} need review.
+                  </p>
+                </div>
+              </div>
+              <div className="stack">
+                {renderCaptureGroup('task')}
+                {renderCaptureGroup('event')}
+                {renderCaptureGroup('reminder')}
+                {renderNeedsReviewGroup()}
+                {lowConfidenceCandidates.length > 0 ? (
+                  <section className="capture-group">
+                    <div className="section-heading">
+                      <div>
+                        <h2>Low confidence</h2>
+                        <p>{lowConfidenceCandidates.length} item{lowConfidenceCandidates.length === 1 ? '' : 's'}</p>
+                      </div>
+                    </div>
+                    <div className="stack">
+                      {lowConfidenceCandidates.map((c) => (
+                        <CaptureCandidateCard
+                          key={c.id}
+                          candidate={c}
+                          onToggleSelected={(id, selected) => updateCaptureCandidate(id, { selected })}
+                          onChange={updateCaptureCandidate}
+                          onAlarmChange={updateCaptureCandidateAlarm}
+                          onPreviewDownload={previewDownloadICS}
+                          onPreviewCopy={previewCopyDetails}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                ) : null}
+              </div>
+            </section>
+          </>
+        ) : captureOutcome ? (
+          <section className="panel panel--success">
+            <div className="section-heading">
+              <div>
+                <h2>Saved {captureOutcome.savedCount} follow-up{captureOutcome.savedCount === 1 ? '' : 's'}.</h2>
+                <p>{getCaptureOutcomeText(captureOutcome.manualEntriesAvoidedApprox)}</p>
+              </div>
+              <div className="action-row">
+                <button type="button" className="secondary-button" onClick={() => setActiveView('today')}>
+                  View today
+                </button>
+                <button
+                  type="button"
+                  className="ghost-button"
+                  onClick={() => { clearCaptureComposer(); setActiveView('import'); }}
+                >
+                  Import more
+                </button>
+              </div>
             </div>
           </section>
-        ) : null}
+        ) : (
+          <section className="panel panel--quiet">
+            <div className="empty-state">
+              <h3>No pending imports.</h3>
+              <p>Import a file or paste text to get started.</p>
+              <button type="button" className="primary-button" onClick={() => setActiveView('import')}>
+                Go to Import
+              </button>
+            </div>
+          </section>
+        )}
+
+        <section className="panel panel--quiet">
+          <div className="section-heading">
+            <div><h2>Saved items</h2></div>
+            <button type="button" className="ghost-button" onClick={() => setManualEditorOpen(true)}>
+              Add manually
+            </button>
+          </div>
+          <div className="filter-bar">
+            {FILTER_ITEMS.map((item) => (
+              <button
+                key={item.value}
+                type="button"
+                className={`chip ${listFilter === item.value ? 'is-selected' : ''}`}
+                onClick={() => setListFilter(item.value)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+          <div className="stack">
+            {visibleTasks.length > 0 ? (
+              visibleTasks.map((task) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  showStatus
+                  onComplete={task.status === 'active' ? completeTask : undefined}
+                  onEdit={task.status === 'active' ? setEditingTask : undefined}
+                  onDelete={deleteTask}
+                  onDownloadICS={handleDownloadICS}
+                  onCopyDetails={handleCopyDetails}
+                />
+              ))
+            ) : (
+              <div className="empty-state">
+                <h3>No saved follow-ups yet.</h3>
+              </div>
+            )}
+          </div>
+        </section>
       </section>
     );
   }
@@ -1227,7 +1424,7 @@ export default function App() {
 
         <section className="panel panel--quiet">
           <h2>Privacy</h2>
-          <p>Only what you paste. No account.</p>
+          <p>Only what you upload. No account.</p>
         </section>
 
         {qaMode ? (
@@ -1267,14 +1464,14 @@ export default function App() {
 
   function renderView() {
     switch (activeView) {
-      case 'upcoming':
-        return renderUpcomingView();
-      case 'now':
-        return renderNowView();
-      case 'tasks':
-        return renderTasksView();
-      case 'capture':
-        return renderCaptureView();
+      case 'today':
+        return renderTodayView();
+      case 'calendar':
+        return renderCalendarView();
+      case 'import':
+        return renderImportView();
+      case 'inbox':
+        return renderInboxView();
       case 'settings':
         return renderSettingsView();
     }
@@ -1291,11 +1488,11 @@ export default function App() {
 
       {manualEditorOpen ? (
         <div className="modal-backdrop" role="presentation" onClick={() => setManualEditorOpen(false)}>
-          <div className="modal-sheet" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+          <div className="modal-sheet" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
             <TaskEditor
               title="Add manually"
-              description="Use this when capture misses something."
-              submitLabel="Save manual item"
+              description="Use this when import misses something."
+              submitLabel="Save item"
               onSubmit={(draft) => addTask(draft)}
               onCancel={() => setManualEditorOpen(false)}
             />
@@ -1305,7 +1502,7 @@ export default function App() {
 
       {editingTask ? (
         <div className="modal-backdrop" role="presentation" onClick={() => setEditingTask(null)}>
-          <div className="modal-sheet" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+          <div className="modal-sheet" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
             <TaskEditor
               initialValue={editingTask}
               title="Edit item"
@@ -1322,4 +1519,3 @@ export default function App() {
     </div>
   );
 }
-

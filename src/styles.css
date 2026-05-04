@@ -958,3 +958,175 @@ textarea:focus {
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Import cards ─────────────────────────────── */
+.import-card-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.import-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 20px 16px;
+  border-radius: 24px;
+  border: 1.5px solid var(--line);
+  background: var(--surface);
+  cursor: pointer;
+  text-align: left;
+  transition: box-shadow 0.14s, border-color 0.14s;
+}
+
+.import-card:hover {
+  box-shadow: var(--shadow);
+  border-color: var(--accent);
+}
+
+.import-card__label {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.import-card__hint {
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.import-card.is-disabled {
+  opacity: 0.52;
+  pointer-events: none;
+}
+
+/* ── Calendar grid ────────────────────────────── */
+.cal-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.cal-nav strong {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.cal-dow {
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  padding: 4px 0 8px;
+}
+
+.cal-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 40px;
+  border-radius: 12px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.cal-day:hover {
+  background: var(--surface);
+}
+
+.cal-day--empty {
+  pointer-events: none;
+}
+
+.cal-day.is-today {
+  font-weight: 800;
+  color: var(--accent);
+}
+
+.cal-day.is-selected {
+  background: var(--accent);
+  color: #fff;
+}
+
+.cal-day.is-selected:hover {
+  background: var(--accent-strong);
+}
+
+.cal-day__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  display: block;
+}
+
+.cal-day.is-selected .cal-day__dot {
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.cal-day.has-review .cal-day__dot {
+  background: var(--warning);
+}
+
+/* ── Today view ───────────────────────────────── */
+.today-date {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+/* ── File import ──────────────────────────────── */
+.file-label-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0 20px;
+  border-radius: 24px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+  color: #fff;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 4px 14px rgba(91, 108, 255, 0.32);
+}
+
+.import-file-preview {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  font-size: 0.83rem;
+  color: var(--muted);
+  line-height: 1.5;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.screenshot-preview {
+  width: 100%;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  display: block;
+}

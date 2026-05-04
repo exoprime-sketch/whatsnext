@@ -108,10 +108,10 @@ function checkAppIntegrity() {
   const { functionCounts, variableCounts } = collectTopLevelNames(appDeclaration.body);
 
   const requiredFunctions = [
-    'renderNowView',
-    'renderUpcomingView',
-    'renderTasksView',
-    'renderCaptureView',
+    'renderTodayView',
+    'renderCalendarView',
+    'renderInboxView',
+    'renderImportView',
     'renderSettingsView'
   ];
 
