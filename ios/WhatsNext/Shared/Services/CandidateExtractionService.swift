@@ -36,8 +36,10 @@ struct CandidateExtractionService {
         // Time
         if let (timeText, comps) = extractTime(stripped) {
             c.timeText = timeText
-            if let start = c.startDate, let hour = comps.hour {
-                c.startDate = applyTime(to: start, hour: hour, minute: comps.minute ?? 0)
+            if let start = c.startDate,
+               let timeComponents = comps,
+               let hour = timeComponents.hour {
+                c.startDate = applyTime(to: start, hour: hour, minute: timeComponents.minute ?? 0)
                 c.endDate   = c.startDate.map { $0.addingTimeInterval(3600) }
             } else if c.itemType == .event {
                 c.needsTimeReview = true
