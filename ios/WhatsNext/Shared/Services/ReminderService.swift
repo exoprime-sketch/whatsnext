@@ -9,7 +9,7 @@ struct ReminderService {
     }
 
     // Creates and saves an EKReminder from an extracted candidate.
-    // Returns the calItemIdentifier for storage.
+    // Returns the calendarItemIdentifier for storage.
     @discardableResult
     func createReminder(from candidate: ExtractedCandidate) throws -> String {
         let reminder       = EKReminder(eventStore: eventStore)
@@ -27,6 +27,6 @@ struct ReminderService {
 
         reminder.calendar = eventStore.defaultCalendarForNewReminders()
         try eventStore.save(reminder, commit: true)
-        return reminder.calItemIdentifier
+        return reminder.calendarItemIdentifier
     }
 }
